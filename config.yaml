@@ -1,0 +1,31 @@
+data:
+  train_dir: kaggle/train
+  test_dir: kaggle/test
+  max_samples: null        # null = use all images, set to int for quick runs
+  val_split: 0.1
+  num_workers: 6
+
+model:
+  name: vit_base_patch16_224.augreg_in21k
+  pretrained: true
+  freeze_backbone: false   # if true, only train the classification head
+
+training:
+  epochs: 20
+  batch_size: 64
+  lr: 1.0e-4
+  weight_decay: 0.01
+  grad_clip_norm: 1.0
+  mixed_precision: true
+
+scheduler:
+  type: cosine
+  warmup_epochs: 2
+
+checkpointing:
+  save_dir: checkpoints
+  save_best: true
+  early_stopping_patience: 5   # null to disable
+
+logging:
+  tensorboard_dir: runs
