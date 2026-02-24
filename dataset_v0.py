@@ -1,10 +1,10 @@
 import os
-
 import timm
 import torch
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from torch.utils.data import Dataset
+from torchvision import transforms
 from PIL import Image
 
 
@@ -36,64 +36,36 @@ def fen_to_labels(fen: str) -> torch.Tensor:
     return torch.tensor(squares, dtype=torch.long)
 
 
-def labels_to_fen(labels: torch.Tensor) -> str:
-    """Convert a (64,) tensor of class indices back to a FEN board string."""
-    fen_ranks = []
-    for rank_start in range(0, 64, 8):
-        rank_str = ""
-        empty_count = 0
-        for sq in range(rank_start, rank_start + 8):
-            piece = INDEX_TO_PIECE[labels[sq].item()]
-            if piece == '.':
-                empty_count += 1
-            else:
-                if empty_count > 0:
-                    rank_str += str(empty_count)
-                    empty_count = 0
-                rank_str += piece
-        if empty_count > 0:
-            rank_str += str(empty_count)
-        fen_ranks.append(rank_str)
-    return '/'.join(fen_ranks)
-
-
 def filename_to_fen(filename: str) -> str:
     """Convert a filename like '1B1B1K2-3p1N2-...-1B6.jpeg' to a FEN string."""
-    name = os.path.splitext(filename)[0]
+    name = os.path.splitext(filename)[0]  # strip .jpeg
     return name.replace('-', '/')
-
-
-def get_transform(model_name: str, is_training: bool = False):
-    """Build the image transform from a timm model's pretrained config."""
-    pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
-    data_cfg = resolve_data_config(pretrained_cfg)
-    return create_transform(**data_cfg, is_training=is_training)
 
 
 class ChessDataset(Dataset):
     """Dataset of chess board images with per-square piece labels.
 
     Each item returns:
-        image: (3, 224, 224) tensor
+        image: (3, 224, 224) tensor, normalized for ImageNet-pretrained models
         labels: (64,) tensor of class indices in [0, 12]
     """
 
-    def __init__(
-        self,
-        root_dir: str,
-        model_name: str = "vit_base_patch16_224.augreg_in21k",
-        max_samples: int | None = None,
-        is_training: bool = False,
-        transform=None,
-    ):
+    def __init__(self, root_dir: str, max_samples: int | None = None, transform=None):
         self.root_dir = root_dir
-        self.filenames = sorted(
+        self.filenames = sorted([
             f for f in os.listdir(root_dir) if f.endswith('.jpeg')
-        )
+        ])
         if max_samples is not None:
             self.filenames = self.filenames[:max_samples]
 
-        self.transform = transform or get_transform(model_name, is_training=is_training)
+        if transform is not None:
+            self.transform = transform
+        else:
+            # Use the model's own preprocessing config
+            data_cfg = resolve_data_config(
+                timm.create_model("vit_base_patch16_224.augreg_in21k", pretrained=False).pretrained_cfg
+            )
+            self.transform = create_transform(**data_cfg, is_training=False)
 
     def __len__(self):
         return len(self.filenames)

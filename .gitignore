@@ -8,5 +8,8 @@ __pycache__/
 *.pyc
 
 chess_vit.pth
+checkpoints/
 
 .ipynb_checkpoints/
+
+runs/
