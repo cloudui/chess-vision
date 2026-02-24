@@ -3,3 +3,10 @@
 kaggle/
 
 .DS_Store
+
+__pycache__/
+*.pyc
+
+chess_vit.pth
+
+.ipynb_checkpoints/
