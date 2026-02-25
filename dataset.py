@@ -5,6 +5,7 @@ import torch
 from timm.data import resolve_data_config
 from timm.data.transforms_factory import create_transform
 from torch.utils.data import Dataset
+from torchvision import transforms
 from PIL import Image
 
 
@@ -64,10 +65,35 @@ def filename_to_fen(filename: str) -> str:
 
 
 def get_transform(model_name: str, is_training: bool = False):
-    """Build the image transform from a timm model's pretrained config."""
+    """Build the image transform from a timm model's pretrained config.
+
+    For training, uses chess-safe augmentations only:
+    - No horizontal flip (would swap board columns, misaligning labels)
+    - No aggressive random crop (would lose squares)
+    - Color jitter is safe (helps generalize to different board themes)
+    """
     pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
     data_cfg = resolve_data_config(pretrained_cfg)
-    return create_transform(**data_cfg, is_training=is_training)
+
+    if is_training:
+        mean = data_cfg["mean"]
+        std = data_cfg["std"]
+        input_size = data_cfg["input_size"][-1]  # 224
+        return transforms.Compose([
+            transforms.Resize((input_size, input_size)),
+            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ])
+    else:
+        mean = data_cfg["mean"]
+        std = data_cfg["std"]
+        input_size = data_cfg["input_size"][-1]
+        return transforms.Compose([
+            transforms.Resize((input_size, input_size)),
+            transforms.ToTensor(),
+            transforms.Normalize(mean=mean, std=std),
+        ])
 
 
 class ChessDataset(Dataset):
