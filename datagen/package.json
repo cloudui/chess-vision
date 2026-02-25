@@ -4,7 +4,9 @@
   "description": "Chess board image dataset generator",
   "main": "generate.js",
   "dependencies": {
+    "@napi-rs/canvas": "^0.1.95",
+    "canvas": "^3.2.1",
     "chess-fen2img": "^1.0.1",
-    "chess.js": "^0.13.4"
+    "chess.js": "^0.10.2"
   }
 }
