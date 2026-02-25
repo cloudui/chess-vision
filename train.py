@@ -70,7 +70,9 @@ def build_scheduler(optimizer, cfg, steps_per_epoch):
         import math
         return 0.5 * (1 + math.cos(math.pi * progress))
 
-    return torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    scheduler = torch.optim.lr_scheduler.LambdaLR(optimizer, lr_lambda)
+    scheduler.last_epoch = -1  # suppress false warning about step() order
+    return scheduler
 
 
 # ---------------------------------------------------------------------------
@@ -162,6 +164,8 @@ if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Train chess ViT")
     parser.add_argument("--config", default="config.yaml", help="Path to config file")
     parser.add_argument("--resume", default=None, help="Path to checkpoint to resume from")
+    parser.add_argument("--reset-schedule", action="store_true",
+                        help="Reset optimizer, scheduler, and epoch counter when resuming (warm restart)")
     parser.add_argument("--set", nargs="*", default=[], help="Override config values, e.g. training.epochs=10")
     args = parser.parse_args()
 
@@ -231,12 +235,16 @@ if __name__ == "__main__":
     if args.resume:
         ckpt = torch.load(args.resume, map_location=device, weights_only=True)
         model.load_state_dict(ckpt["model"])
-        optimizer.load_state_dict(ckpt["optimizer"])
-        scheduler.load_state_dict(ckpt["scheduler"])
-        scaler.load_state_dict(ckpt["scaler"])
-        start_epoch = ckpt["epoch"] + 1
-        best_val_acc = ckpt.get("best_val_acc", 0.0)
-        print(f"Resumed from epoch {start_epoch}")
+        if args.reset_schedule:
+            # Warm restart: keep model weights, reset everything else
+            print(f"Loaded weights from {args.resume}, reset schedule (warm restart)")
+        else:
+            optimizer.load_state_dict(ckpt["optimizer"])
+            scheduler.load_state_dict(ckpt["scheduler"])
+            scaler.load_state_dict(ckpt["scaler"])
+            start_epoch = ckpt["epoch"] + 1
+            best_val_acc = ckpt.get("best_val_acc", 0.0)
+            print(f"Resumed from epoch {start_epoch}")
 
     # --- Logging ---
     os.makedirs(cfg["logging"]["tensorboard_dir"], exist_ok=True)
