@@ -1,6 +1,7 @@
 data:
   train_dir: kaggle/train
   test_dir: kaggle/test
+  manifest: null           # path to manifest CSV, null = use filename parsing
   max_samples: null        # null = use all images, set to int for quick runs
   val_split: 0.1
   num_workers: 6
@@ -17,6 +18,8 @@ training:
   weight_decay: 0.01
   grad_clip_norm: 1.0
   mixed_precision: true
+  turn_loss_weight: 1.0
+  castling_loss_weight: 1.0
 
 scheduler:
   type: cosine

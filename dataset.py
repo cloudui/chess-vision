@@ -1,3 +1,4 @@
+import csv
 import os
 
 import timm
@@ -64,6 +65,46 @@ def filename_to_fen(filename: str) -> str:
     return name.replace('-', '/')
 
 
+def parse_full_fen(fen_str: str) -> dict:
+    """Parse a full FEN string into placement, turn, and castling components.
+
+    Args:
+        fen_str: FEN string, e.g. "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq"
+                 Can have 2-6 space-separated fields. Only placement, turn, castling are used.
+
+    Returns:
+        dict with:
+            "squares": (64,) long tensor of piece classes
+            "turn": (1,) float tensor, 0.0 = white, 1.0 = black
+            "castling": (4,) float tensor, [K, Q, k, q]
+    """
+    parts = fen_str.strip().split()
+    placement = parts[0]
+
+    # Turn
+    turn_char = parts[1] if len(parts) > 1 else "w"
+    turn_val = 1.0 if turn_char == "b" else 0.0
+
+    # Castling
+    castling_str = parts[2] if len(parts) > 2 else "-"
+    castling = [0.0, 0.0, 0.0, 0.0]  # K, Q, k, q
+    if castling_str != "-":
+        if "K" in castling_str:
+            castling[0] = 1.0
+        if "Q" in castling_str:
+            castling[1] = 1.0
+        if "k" in castling_str:
+            castling[2] = 1.0
+        if "q" in castling_str:
+            castling[3] = 1.0
+
+    return {
+        "squares": fen_to_labels(placement),
+        "turn": torch.tensor([turn_val], dtype=torch.float),
+        "castling": torch.tensor(castling, dtype=torch.float),
+    }
+
+
 def get_transform(model_name: str, is_training: bool = False):
     """Build the image transform from a timm model's pretrained config.
 
@@ -99,9 +140,21 @@ def get_transform(model_name: str, is_training: bool = False):
 class ChessDataset(Dataset):
     """Dataset of chess board images with per-square piece labels.
 
+    Supports two modes:
+    1. Manifest CSV mode: reads (filename, fen, legal) from a manifest file.
+       FEN includes placement + turn + castling.
+       legal=1 means turn/castling labels are trustworthy (from real games).
+       legal=0 means only piece placement is meaningful (random positions).
+    2. Filename mode (legacy/Kaggle): parses FEN from filenames.
+       Turn defaults to white, castling to none, legal to false.
+
     Each item returns:
         image: (3, 224, 224) tensor
-        labels: (64,) tensor of class indices in [0, 12]
+        labels: dict with:
+            "squares": (64,) long tensor of piece classes [0..12]
+            "turn": (1,) float tensor, 0.0 = white, 1.0 = black
+            "castling": (4,) float tensor, [K, Q, k, q]
+            "legal": (1,) float tensor, 1.0 = legal position, 0.0 = random
     """
 
     def __init__(
@@ -111,26 +164,51 @@ class ChessDataset(Dataset):
         max_samples: int | None = None,
         is_training: bool = False,
         transform=None,
+        manifest: str | None = None,
     ):
         self.root_dir = root_dir
-        self.filenames = sorted(
-            f for f in os.listdir(root_dir) if f.endswith('.jpeg')
-        )
-        if max_samples is not None:
-            self.filenames = self.filenames[:max_samples]
-
         self.transform = transform or get_transform(model_name, is_training=is_training)
 
+        if manifest and os.path.exists(manifest):
+            # Manifest mode: read (filename, fen, legal) from CSV
+            self.entries = []
+            with open(manifest, newline="") as f:
+                reader = csv.DictReader(f)
+                for row in reader:
+                    legal = row.get("legal", "1") == "1"
+                    self.entries.append((row["filename"], row["fen"], legal))
+            self.use_manifest = True
+        else:
+            # Legacy filename mode (Kaggle dataset)
+            self.entries = [
+                (f, None, False) for f in sorted(os.listdir(root_dir))
+                if f.endswith('.jpeg') or f.endswith('.png')
+            ]
+            self.use_manifest = False
+
+        if max_samples is not None:
+            self.entries = self.entries[:max_samples]
+
     def __len__(self):
-        return len(self.filenames)
+        return len(self.entries)
 
     def __getitem__(self, idx):
-        filename = self.filenames[idx]
+        filename, fen, legal = self.entries[idx]
         img_path = os.path.join(self.root_dir, filename)
         image = Image.open(img_path).convert('RGB')
         image = self.transform(image)
 
-        fen = filename_to_fen(filename)
-        labels = fen_to_labels(fen)
+        if self.use_manifest and fen:
+            labels = parse_full_fen(fen)
+        else:
+            # Legacy: parse from filename, default turn/castling
+            placement_fen = filename_to_fen(filename)
+            labels = {
+                "squares": fen_to_labels(placement_fen),
+                "turn": torch.tensor([0.0], dtype=torch.float),
+                "castling": torch.zeros(4, dtype=torch.float),
+            }
+
+        labels["legal"] = torch.tensor([1.0 if legal else 0.0], dtype=torch.float)
 
         return image, labels

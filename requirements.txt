@@ -5,3 +5,5 @@ pyyaml
 tqdm
 tensorboard
 matplotlib
+python-chess
+cairosvg

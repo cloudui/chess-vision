@@ -21,10 +21,25 @@ def predict(model, image_path, transform, device):
 
     model.eval()
     with torch.no_grad():
-        logits = model(tensor).view(NUM_SQUARES, NUM_CLASSES)
-        preds = logits.argmax(dim=-1)
+        outputs = model(tensor)
 
-    return labels_to_fen(preds.cpu())
+        # Piece placement
+        sq_logits = outputs["squares"].view(NUM_SQUARES, NUM_CLASSES)
+        preds = sq_logits.argmax(dim=-1)
+        placement = labels_to_fen(preds.cpu())
+
+        # Turn
+        turn = "b" if outputs["turn"].item() > 0 else "w"
+
+        # Castling
+        castling_preds = (outputs["castling"].squeeze(0) > 0).tolist()
+        castling_chars = ""
+        for flag, ch in zip(castling_preds, ["K", "Q", "k", "q"]):
+            if flag:
+                castling_chars += ch
+        castling = castling_chars or "-"
+
+    return f"{placement} {turn} {castling}"
 
 
 if __name__ == "__main__":
