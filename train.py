@@ -79,22 +79,48 @@ def build_scheduler(optimizer, cfg, steps_per_epoch):
 # Train / Validate
 # ---------------------------------------------------------------------------
 
-def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, device, use_amp):
+def train_one_epoch(model, loader, optimizer, scheduler, scaler, device, use_amp, cfg):
     model.train()
+    piece_criterion = nn.CrossEntropyLoss()
+    turn_criterion = nn.BCEWithLogitsLoss(reduction="none")
+    castling_criterion = nn.BCEWithLogitsLoss(reduction="none")
+
+    turn_w = cfg["training"].get("turn_loss_weight", 1.0)
+    castling_w = cfg["training"].get("castling_loss_weight", 1.0)
+
     total_loss = 0.0
     correct_squares = 0
     correct_boards = 0
     total_squares = 0
     total_boards = 0
+    correct_turn = 0
+    total_legal = 0
+    correct_castling_rights = 0  # individual rights
+    correct_castling_all = 0     # all 4 correct
+    total_castling_rights = 0
+    correct_full_fen = 0
 
     pbar = tqdm(loader, desc="  train", leave=False)
     for images, labels in pbar:
         images = images.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+        sq_labels = labels["squares"].to(device, non_blocking=True)
+        turn_labels = labels["turn"].to(device, non_blocking=True)
+        castling_labels = labels["castling"].to(device, non_blocking=True)
+        legal_mask = labels["legal"].to(device, non_blocking=True).squeeze(1)  # (B,)
 
         with torch.autocast(device_type=device.type, enabled=use_amp):
-            logits = model(images).view(-1, NUM_SQUARES, NUM_CLASSES)
-            loss = criterion(logits.reshape(-1, NUM_CLASSES), labels.reshape(-1))
+            outputs = model(images)
+            sq_logits = outputs["squares"].view(-1, NUM_SQUARES, NUM_CLASSES)
+            piece_loss = piece_criterion(sq_logits.reshape(-1, NUM_CLASSES), sq_labels.reshape(-1))
+
+            # Only compute turn/castling loss on legal positions
+            turn_loss_raw = turn_criterion(outputs["turn"], turn_labels).squeeze(1)  # (B,)
+            castling_loss_raw = castling_criterion(outputs["castling"], castling_labels)  # (B, 4)
+            num_legal = legal_mask.sum().clamp(min=1)
+            turn_loss = (turn_loss_raw * legal_mask).sum() / num_legal
+            castling_loss = (castling_loss_raw * legal_mask.unsqueeze(1)).sum() / (num_legal * 4)
+
+            loss = piece_loss + turn_w * turn_loss + castling_w * castling_loss
 
         optimizer.zero_grad()
         scaler.scale(loss).backward()
@@ -106,11 +132,36 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
 
         batch_size = images.size(0)
         total_loss += loss.item() * batch_size
-        preds = logits.argmax(dim=-1)
-        correct_squares += (preds == labels).sum().item()
-        correct_boards += (preds == labels).all(dim=1).sum().item()
-        total_squares += labels.numel()
+        n_legal = int(legal_mask.sum().item())
+
+        # Piece accuracy (all positions)
+        preds = sq_logits.argmax(dim=-1)
+        sq_correct = (preds == sq_labels)
+        correct_squares += sq_correct.sum().item()
+        board_correct = sq_correct.all(dim=1)
+        correct_boards += board_correct.sum().item()
+        total_squares += sq_labels.numel()
         total_boards += batch_size
+
+        # Turn/castling accuracy (legal positions only)
+        if n_legal > 0:
+            legal_idx = legal_mask.bool()
+            total_legal += n_legal
+
+            turn_preds = (outputs["turn"].detach() > 0).float()
+            turn_correct = (turn_preds == turn_labels).squeeze(1)
+            correct_turn += (turn_correct & legal_idx).sum().item()
+
+            castling_preds = (outputs["castling"].detach() > 0).float()
+            castling_right_correct = (castling_preds == castling_labels)
+            correct_castling_rights += (castling_right_correct & legal_idx.unsqueeze(1)).sum().item()
+            castling_all_correct = castling_right_correct.all(dim=1)
+            correct_castling_all += (castling_all_correct & legal_idx).sum().item()
+            total_castling_rights += n_legal * 4
+
+            # Full FEN accuracy (legal only)
+            full_correct = board_correct & turn_correct & castling_all_correct & legal_idx
+            correct_full_fen += full_correct.sum().item()
 
         pbar.set_postfix(loss=f"{loss.item():.4f}")
 
@@ -118,41 +169,98 @@ def train_one_epoch(model, loader, optimizer, scheduler, criterion, scaler, devi
     return {
         "loss": total_loss / n,
         "square_acc": correct_squares / total_squares,
-        "board_acc": correct_boards / total_boards,
+        "board_acc": correct_boards / n,
+        "turn_acc": correct_turn / max(total_legal, 1),
+        "castling_right_acc": correct_castling_rights / max(total_castling_rights, 1),
+        "castling_acc": correct_castling_all / max(total_legal, 1),
+        "full_fen_acc": correct_full_fen / max(total_legal, 1),
+        "num_legal": total_legal,
     }
 
 
 @torch.no_grad()
-def validate(model, loader, criterion, device, use_amp):
+def validate(model, loader, device, use_amp, cfg):
     model.eval()
+    piece_criterion = nn.CrossEntropyLoss()
+    turn_criterion = nn.BCEWithLogitsLoss(reduction="none")
+    castling_criterion = nn.BCEWithLogitsLoss(reduction="none")
+
+    turn_w = cfg["training"].get("turn_loss_weight", 1.0)
+    castling_w = cfg["training"].get("castling_loss_weight", 1.0)
+
     total_loss = 0.0
     correct_squares = 0
     correct_boards = 0
     total_squares = 0
     total_boards = 0
+    correct_turn = 0
+    total_legal = 0
+    correct_castling_rights = 0
+    correct_castling_all = 0
+    total_castling_rights = 0
+    correct_full_fen = 0
 
     pbar = tqdm(loader, desc="  val  ", leave=False)
     for images, labels in pbar:
         images = images.to(device, non_blocking=True)
-        labels = labels.to(device, non_blocking=True)
+        sq_labels = labels["squares"].to(device, non_blocking=True)
+        turn_labels = labels["turn"].to(device, non_blocking=True)
+        castling_labels = labels["castling"].to(device, non_blocking=True)
+        legal_mask = labels["legal"].to(device, non_blocking=True).squeeze(1)  # (B,)
 
         with torch.autocast(device_type=device.type, enabled=use_amp):
-            logits = model(images).view(-1, NUM_SQUARES, NUM_CLASSES)
-            loss = criterion(logits.reshape(-1, NUM_CLASSES), labels.reshape(-1))
+            outputs = model(images)
+            sq_logits = outputs["squares"].view(-1, NUM_SQUARES, NUM_CLASSES)
+            piece_loss = piece_criterion(sq_logits.reshape(-1, NUM_CLASSES), sq_labels.reshape(-1))
+
+            turn_loss_raw = turn_criterion(outputs["turn"], turn_labels).squeeze(1)
+            castling_loss_raw = castling_criterion(outputs["castling"], castling_labels)
+            num_legal = legal_mask.sum().clamp(min=1)
+            turn_loss = (turn_loss_raw * legal_mask).sum() / num_legal
+            castling_loss = (castling_loss_raw * legal_mask.unsqueeze(1)).sum() / (num_legal * 4)
+
+            loss = piece_loss + turn_w * turn_loss + castling_w * castling_loss
 
         batch_size = images.size(0)
         total_loss += loss.item() * batch_size
-        preds = logits.argmax(dim=-1)
-        correct_squares += (preds == labels).sum().item()
-        correct_boards += (preds == labels).all(dim=1).sum().item()
-        total_squares += labels.numel()
+        n_legal = int(legal_mask.sum().item())
+
+        preds = sq_logits.argmax(dim=-1)
+        sq_correct = (preds == sq_labels)
+        correct_squares += sq_correct.sum().item()
+        board_correct = sq_correct.all(dim=1)
+        correct_boards += board_correct.sum().item()
+        total_squares += sq_labels.numel()
         total_boards += batch_size
+
+        if n_legal > 0:
+            legal_idx = legal_mask.bool()
+            total_legal += n_legal
+
+            turn_preds = (outputs["turn"] > 0).float()
+            turn_correct = (turn_preds == turn_labels).squeeze(1)
+            correct_turn += (turn_correct & legal_idx).sum().item()
+
+            castling_preds = (outputs["castling"] > 0).float()
+            castling_right_correct = (castling_preds == castling_labels)
+            correct_castling_rights += (castling_right_correct & legal_idx.unsqueeze(1)).sum().item()
+            castling_all_correct = castling_right_correct.all(dim=1)
+            correct_castling_all += (castling_all_correct & legal_idx).sum().item()
+            total_castling_rights += n_legal * 4
+
+            full_correct = board_correct & turn_correct & castling_all_correct & legal_idx
+            correct_full_fen += full_correct.sum().item()
 
     n = total_boards
     return {
         "loss": total_loss / n,
         "square_acc": correct_squares / total_squares,
-        "board_acc": correct_boards / total_boards,
+        "board_acc": correct_boards / n,
+        "turn_acc": correct_turn / max(total_legal, 1),
+        "castling_right_acc": correct_castling_rights / max(total_castling_rights, 1),
+        "castling_acc": correct_castling_all / max(total_legal, 1),
+        "full_fen_acc": correct_full_fen / max(total_legal, 1),
+        "num_legal": total_legal,
     }
 
 
@@ -182,12 +290,14 @@ if __name__ == "__main__":
     # --- Data ---
     model_name = cfg["model"]["name"]
     max_samples = cfg["data"]["max_samples"]
+    manifest = cfg["data"].get("manifest")
 
     full_dataset = ChessDataset(
         cfg["data"]["train_dir"],
         model_name=model_name,
         max_samples=max_samples,
         is_training=True,
+        manifest=manifest,
     )
     val_size = int(len(full_dataset) * cfg["data"]["val_split"])
     train_size = len(full_dataset) - val_size
@@ -227,7 +337,6 @@ if __name__ == "__main__":
     )
     scheduler = build_scheduler(optimizer, cfg, steps_per_epoch=len(train_loader))
     scaler = torch.amp.GradScaler(enabled=use_scaler)
-    criterion = nn.CrossEntropyLoss()
 
     # --- Resume ---
     start_epoch = 0
@@ -263,9 +372,9 @@ if __name__ == "__main__":
         t0 = time.time()
 
         train_metrics = train_one_epoch(
-            model, train_loader, optimizer, scheduler, criterion, scaler, device, use_amp
+            model, train_loader, optimizer, scheduler, scaler, device, use_amp, cfg
         )
-        val_metrics = validate(model, val_loader, criterion, device, use_amp)
+        val_metrics = validate(model, val_loader, device, use_amp, cfg)
 
         elapsed = time.time() - t0
         lr = optimizer.param_groups[0]["lr"]
@@ -273,22 +382,32 @@ if __name__ == "__main__":
         print(
             f"  Train — loss: {train_metrics['loss']:.4f}, "
             f"sq_acc: {train_metrics['square_acc']:.4f}, "
-            f"board_acc: {train_metrics['board_acc']:.4f}"
+            f"board_acc: {train_metrics['board_acc']:.4f}, "
+            f"turn: {train_metrics['turn_acc']:.4f}, "
+            f"castling: {train_metrics['castling_acc']:.4f}, "
+            f"full_fen: {train_metrics['full_fen_acc']:.4f} "
+            f"(legal: {train_metrics['num_legal']})"
         )
         print(
             f"  Val   — loss: {val_metrics['loss']:.4f}, "
             f"sq_acc: {val_metrics['square_acc']:.4f}, "
-            f"board_acc: {val_metrics['board_acc']:.4f}"
+            f"board_acc: {val_metrics['board_acc']:.4f}, "
+            f"turn: {val_metrics['turn_acc']:.4f}, "
+            f"castling: {val_metrics['castling_acc']:.4f}, "
+            f"full_fen: {val_metrics['full_fen_acc']:.4f} "
+            f"(legal: {val_metrics['num_legal']})"
         )
         print(f"  LR: {lr:.2e} | Time: {elapsed:.1f}s")
 
         # TensorBoard
-        writer.add_scalar("train/loss", train_metrics["loss"], epoch)
-        writer.add_scalar("train/square_acc", train_metrics["square_acc"], epoch)
-        writer.add_scalar("train/board_acc", train_metrics["board_acc"], epoch)
-        writer.add_scalar("val/loss", val_metrics["loss"], epoch)
-        writer.add_scalar("val/square_acc", val_metrics["square_acc"], epoch)
-        writer.add_scalar("val/board_acc", val_metrics["board_acc"], epoch)
+        for prefix, metrics in [("train", train_metrics), ("val", val_metrics)]:
+            writer.add_scalar(f"{prefix}/loss", metrics["loss"], epoch)
+            writer.add_scalar(f"{prefix}/square_acc", metrics["square_acc"], epoch)
+            writer.add_scalar(f"{prefix}/board_acc", metrics["board_acc"], epoch)
+            writer.add_scalar(f"{prefix}/turn_acc", metrics["turn_acc"], epoch)
+            writer.add_scalar(f"{prefix}/castling_right_acc", metrics["castling_right_acc"], epoch)
+            writer.add_scalar(f"{prefix}/castling_acc", metrics["castling_acc"], epoch)
+            writer.add_scalar(f"{prefix}/full_fen_acc", metrics["full_fen_acc"], epoch)
         writer.add_scalar("lr", lr, epoch)
 
         # Checkpoint
