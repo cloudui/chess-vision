@@ -1,7 +1,7 @@
 data:
-  train_dir: kaggle/train
-  test_dir: kaggle/test
-  manifest: null           # path to manifest CSV, null = use filename parsing
+  train_dir: data/generated      # generated images from datagen/
+  test_dir: kaggle/test           # keep Kaggle test for comparison
+  manifest: data/generated/manifest.csv  # manifest mode for generated data
   max_samples: null        # null = use all images, set to int for quick runs
   val_split: 0.1
   num_workers: 6

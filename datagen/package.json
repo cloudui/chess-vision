@@ -1,0 +1,10 @@
+{
+  "name": "chess-datagen",
+  "version": "1.0.0",
+  "description": "Chess board image dataset generator",
+  "main": "generate.js",
+  "dependencies": {
+    "chess-fen2img": "^1.0.1",
+    "chess.js": "^0.13.4"
+  }
+}
