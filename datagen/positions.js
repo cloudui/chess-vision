@@ -54,7 +54,7 @@ function randomPosition() {
     ranks.push(rankStr);
   }
 
-  return { placement: ranks.join('/'), turn: 'w', castling: '-', lastMove: null };
+  return { placement: ranks.join('/'), turn: 'w', castling: '-', enPassant: '-', lastMove: null };
 }
 
 /**
@@ -139,6 +139,7 @@ function samplePgnPosition(gameText) {
     placement: parts[0],
     turn: parts[1],
     castling: parts[2],
+    enPassant: parts[3],
     lastMove,
   };
 }
