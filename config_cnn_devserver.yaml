@@ -16,8 +16,8 @@ model:
 
 training:
   epochs: 10
-  batch_size: 768
-  lr: 8.0e-4
+  batch_size: 512
+  lr: 5.0e-4
   weight_decay: 0.05
   grad_clip_norm: 1.0
   mixed_precision: true
