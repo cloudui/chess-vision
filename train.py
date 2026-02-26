@@ -9,7 +9,7 @@ from torch.utils.data import DataLoader, random_split
 from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
-from dataset import ChessDataset, NUM_CLASSES, NUM_SQUARES
+from dataset import ChessDataset, NUM_CLASSES, NUM_SQUARES, fen_to_labels
 from model import build_model
 
 
@@ -57,6 +57,22 @@ def apply_overrides(cfg: dict, overrides: list[str]):
         d[keys[-1]] = value
 
 
+def compute_class_weights(dataset, device):
+    """Compute inverse-sqrt-frequency class weights from manifest FENs."""
+    counts = torch.zeros(NUM_CLASSES)
+    for sample in dataset.samples:
+        fen = sample.get("fen")
+        if fen:
+            labels = fen_to_labels(fen.split()[0])
+            counts += torch.bincount(labels, minlength=NUM_CLASSES).float()
+    if counts.sum() == 0:
+        return None
+    freq = counts / counts.sum()
+    weights = 1.0 / freq.clamp(min=1e-6).sqrt()
+    weights /= weights.mean()  # normalize so mean weight = 1
+    return weights.to(device)
+
+
 def build_scheduler(optimizer, cfg, steps_per_epoch):
     warmup_epochs = cfg["scheduler"]["warmup_epochs"]
     total_epochs = cfg["training"]["epochs"]
@@ -80,7 +96,7 @@ def build_scheduler(optimizer, cfg, steps_per_epoch):
 # ---------------------------------------------------------------------------
 
 def run_epoch(model, loader, device, use_amp, cfg, training=False,
-              optimizer=None, scheduler=None, scaler=None):
+              optimizer=None, scheduler=None, scaler=None, class_weights=None):
     """Run one epoch of training or validation.
 
     When *training* is True, performs optimizer/scheduler/scaler steps.
@@ -90,7 +106,8 @@ def run_epoch(model, loader, device, use_amp, cfg, training=False,
     model.train(training)
 
     piece_criterion = nn.CrossEntropyLoss(
-        label_smoothing=cfg["training"].get("label_smoothing", 0.0)
+        weight=class_weights,
+        label_smoothing=cfg["training"].get("label_smoothing", 0.0),
     )
     turn_criterion = nn.BCEWithLogitsLoss()
     castling_criterion = nn.BCEWithLogitsLoss()
@@ -208,12 +225,14 @@ if __name__ == "__main__":
     # --- Data ---
     model_name = cfg["model"]["name"]
     max_samples = cfg["data"]["max_samples"]
+    input_size = cfg["model"].get("input_size")
 
     full_dataset = ChessDataset(
         cfg["data"]["train_dir"],
         model_name=model_name,
         max_samples=max_samples,
         is_training=True,
+        input_size=input_size,
     )
     val_size = int(len(full_dataset) * cfg["data"]["val_split"])
     train_size = len(full_dataset) - val_size
@@ -241,6 +260,12 @@ if __name__ == "__main__":
         persistent_workers=num_workers > 0,
     )
     print(f"Train: {train_size}, Val: {val_size}")
+
+    # --- Class weights ---
+    class_weights = None
+    if cfg["training"].get("use_class_weights", False):
+        class_weights = compute_class_weights(full_dataset, device)
+        print(f"Class weights: {class_weights}")
 
     # --- Model ---
     model = build_model(cfg).to(device)
@@ -293,8 +318,12 @@ if __name__ == "__main__":
         train_metrics = run_epoch(
             model, train_loader, device, use_amp, cfg,
             training=True, optimizer=optimizer, scheduler=scheduler, scaler=scaler,
+            class_weights=class_weights,
         )
-        val_metrics = run_epoch(model, val_loader, device, use_amp, cfg)
+        val_metrics = run_epoch(
+            model, val_loader, device, use_amp, cfg,
+            class_weights=class_weights,
+        )
 
         elapsed = time.time() - t0
         lr = optimizer.param_groups[0]["lr"]

@@ -56,7 +56,8 @@ if __name__ == "__main__":
     model = build_model(cfg).to(device)
     model.load_state_dict(ckpt["model"])
 
-    transform = get_transform(cfg["model"]["name"], is_training=False)
+    input_size = cfg["model"].get("input_size")
+    transform = get_transform(cfg["model"]["name"], is_training=False, input_size=input_size)
 
     fen = predict(model, args.image, transform, device)
     print(fen)
