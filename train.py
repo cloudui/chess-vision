@@ -290,14 +290,14 @@ if __name__ == "__main__":
     # --- Data ---
     model_name = cfg["model"]["name"]
     max_samples = cfg["data"]["max_samples"]
-    manifest = cfg["data"].get("manifest")
+    manifest_train = cfg["data"].get("manifest_train")
 
     full_dataset = ChessDataset(
         cfg["data"]["train_dir"],
         model_name=model_name,
         max_samples=max_samples,
         is_training=True,
-        manifest=manifest,
+        manifest=manifest_train,
     )
     val_size = int(len(full_dataset) * cfg["data"]["val_split"])
     train_size = len(full_dataset) - val_size
