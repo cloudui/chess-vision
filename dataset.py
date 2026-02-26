@@ -105,7 +105,7 @@ def parse_full_fen(fen_str: str) -> dict:
     }
 
 
-def get_transform(model_name: str, is_training: bool = False):
+def get_transform(model_name: str, is_training: bool = False, input_size: int | None = None):
     """Build the image transform from a timm model's pretrained config.
 
     For training, uses chess-safe augmentations only:
@@ -115,11 +115,13 @@ def get_transform(model_name: str, is_training: bool = False):
     """
     pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
     data_cfg = resolve_data_config(pretrained_cfg)
+    mean = data_cfg["mean"]
+    std = data_cfg["std"]
+
+    if input_size is None:
+        input_size = data_cfg["input_size"][-1]  # 224
 
     if is_training:
-        mean = data_cfg["mean"]
-        std = data_cfg["std"]
-        input_size = data_cfg["input_size"][-1]  # 224
         return transforms.Compose([
             transforms.Resize((input_size, input_size)),
             transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
@@ -127,9 +129,6 @@ def get_transform(model_name: str, is_training: bool = False):
             transforms.Normalize(mean=mean, std=std),
         ])
     else:
-        mean = data_cfg["mean"]
-        std = data_cfg["std"]
-        input_size = data_cfg["input_size"][-1]
         return transforms.Compose([
             transforms.Resize((input_size, input_size)),
             transforms.ToTensor(),
@@ -148,7 +147,7 @@ class ChessDataset(Dataset):
     2. Filename mode (legacy/Kaggle): parses FEN from filenames.
 
     Each item returns:
-        image: (3, 224, 224) tensor
+        image: (3, H, H) tensor (H defaults to 224, configurable via input_size)
         labels: dict with:
             "squares": (64,) long tensor of piece classes [0..12]
             "turn": (1,) float tensor, 0.0 = white, 1.0 = black
@@ -164,9 +163,12 @@ class ChessDataset(Dataset):
         is_training: bool = False,
         transform=None,
         manifest: str | None = None,
+        input_size: int | None = None,
     ):
         self.root_dir = root_dir
-        self.transform = transform or get_transform(model_name, is_training=is_training)
+        self.transform = transform or get_transform(
+            model_name, is_training=is_training, input_size=input_size
+        )
 
         # Auto-detect manifest when not explicitly provided
         if manifest is None:

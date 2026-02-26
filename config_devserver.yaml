@@ -9,6 +9,7 @@ model:
   name: vit_base_patch16_224.augreg_in21k
   pretrained: true
   freeze_backbone: false
+  input_size: 256
   head_dropout: 0.1
   drop_path_rate: 0.1
 
@@ -20,6 +21,7 @@ training:
   grad_clip_norm: 1.0
   mixed_precision: true
   label_smoothing: 0.1
+  use_class_weights: true
   turn_loss_weight: 1.0
   castling_loss_weight: 1.0
 

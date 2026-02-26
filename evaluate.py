@@ -290,11 +290,13 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model"])
 
     test_dir = args.test_dir or cfg["data"]["test_dir"]
+    input_size = cfg["model"].get("input_size")
     test_dataset = ChessDataset(
         test_dir,
         model_name=cfg["model"]["name"],
         is_training=False,
         manifest=args.manifest,
+        input_size=input_size,
     )
     test_loader = DataLoader(
         test_dataset,
