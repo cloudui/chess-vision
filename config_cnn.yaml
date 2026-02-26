@@ -1,0 +1,39 @@
+data:
+  train_dir: data/train
+  test_dir: data/test
+  max_samples: null
+  val_split: 0.1
+  num_workers: 6
+
+model:
+  arch: cnn
+  name: convnextv2_tiny.fcmae_ft_in22k_in1k
+  pretrained: true
+  freeze_backbone: false
+  input_size: 256           # stride-32 CNN → 256/32 = 8x8 feature map
+  head_dropout: 0.1
+  drop_path_rate: 0.1
+
+training:
+  epochs: 20
+  batch_size: 64
+  lr: 1.0e-4
+  weight_decay: 0.01
+  grad_clip_norm: 1.0
+  mixed_precision: true
+  label_smoothing: 0.1
+  use_class_weights: true
+  turn_loss_weight: 1.0
+  castling_loss_weight: 1.0
+
+scheduler:
+  type: cosine
+  warmup_epochs: 2
+
+checkpointing:
+  save_dir: checkpoints_cnn
+  save_best: true
+  early_stopping_patience: 5
+
+logging:
+  tensorboard_dir: runs_cnn
