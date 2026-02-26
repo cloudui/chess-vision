@@ -4,7 +4,7 @@ import torch
 from PIL import Image
 
 from dataset import get_transform, labels_to_fen, NUM_CLASSES, NUM_SQUARES
-from model import build_model
+from models import build_model
 
 
 def get_device():

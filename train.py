@@ -13,7 +13,7 @@ from torch.utils.tensorboard import SummaryWriter
 from tqdm import tqdm
 
 from dataset import ChessDataset, NUM_CLASSES, NUM_SQUARES, fen_to_labels
-from model import build_model
+from models import build_model
 
 
 # ---------------------------------------------------------------------------
