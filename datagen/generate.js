@@ -8,43 +8,16 @@
  */
 
 const fs = require('fs');
+const os = require('os');
 const path = require('path');
+const { Worker } = require('worker_threads');
 const yaml = require('js-yaml');
 const { setSeed, shuffle } = require('./rand');
 const { randomPosition, positionsFromPgn } = require('./positions');
-const { renderBoard, randomStyle } = require('./render');
+const { randomStyle } = require('./render');
 
 // ---------------------------------------------------------------------------
-// FEN orientation adjustment
-// ---------------------------------------------------------------------------
-
-function boardFenForOrientation(pos, flipped) {
-  let { placement, turn, castling, enPassant } = pos;
-
-  if (flipped) {
-    const ranks = placement.split('/');
-    ranks.reverse();
-    placement = ranks.map(r => r.split('').reverse().join('')).join('/');
-  }
-
-  return `${placement} ${turn} ${castling} ${enPassant}`;
-}
-
-// ---------------------------------------------------------------------------
-// Helpers
-// ---------------------------------------------------------------------------
-
-/** Count pieces on the board from a FEN placement string. */
-function countPieces(placement) {
-  let count = 0;
-  for (const ch of placement) {
-    if (ch !== '/' && (ch < '1' || ch > '8')) count++;
-  }
-  return count;
-}
-
-// ---------------------------------------------------------------------------
-// Generate a single split
+// Generate a single split using worker threads
 // ---------------------------------------------------------------------------
 
 async function generateSplit(name, splitConfig, rendering) {
@@ -73,53 +46,58 @@ async function generateSplit(name, splitConfig, rendering) {
   const totalImages = positions.length;
   console.log(`\n[${name}] Generating ${totalImages} images → ${outputDir}`);
 
-  const manifestPath = path.join(outputDir, 'manifest.csv');
-  const manifestLines = [
-    'filename,fen,legal,turn,castling,en_passant,piece_count,has_highlight,style,flipped',
-  ];
+  // Pre-generate styles in main thread (preserves seeded PRNG determinism)
+  const items = positions.map((p, i) => ({
+    index: i,
+    pos: p.pos,
+    legal: p.legal,
+    style: randomStyle(rendering),
+  }));
 
-  for (let i = 0; i < positions.length; i++) {
-    const { pos, legal } = positions[i];
-    const vis = randomStyle(rendering);
-
-    const hasHighlight = vis.showHighlights && pos.lastMove != null;
-
-    const buffer = await renderBoard(pos.placement, {
-      size: imageSize,
-      light: vis.colors.light,
-      dark: vis.colors.dark,
-      style: vis.style,
-      flipped: vis.flipped,
-      lastMove: pos.lastMove || null,
-      highlightColor: vis.highlightColor,
-      showHighlights: vis.showHighlights,
-    });
-
-    const filename = `${String(i).padStart(6, '0')}.png`;
-    fs.writeFileSync(path.join(outputDir, filename), buffer);
-
-    const fen = boardFenForOrientation(pos, vis.flipped);
-    const pieceCount = countPieces(pos.placement);
-
-    manifestLines.push([
-      filename,
-      fen,
-      legal ? 1 : 0,
-      pos.turn,
-      pos.castling,
-      pos.enPassant,
-      pieceCount,
-      hasHighlight ? 1 : 0,
-      vis.style,
-      vis.flipped ? 1 : 0,
-    ].join(','));
-
-    if ((i + 1) % 100 === 0 || i + 1 === positions.length) {
-      console.log(`  ${i + 1}/${positions.length}`);
-    }
+  // Split into chunks for workers
+  const numWorkers = Math.min(os.cpus().length, totalImages);
+  const chunkSize = Math.ceil(totalImages / numWorkers);
+  const chunks = [];
+  for (let i = 0; i < totalImages; i += chunkSize) {
+    chunks.push(items.slice(i, i + chunkSize));
   }
 
-  fs.writeFileSync(manifestPath, manifestLines.join('\n') + '\n');
+  console.log(`  Using ${chunks.length} worker threads`);
+
+  // Spawn workers and collect manifest lines
+  const manifestLines = [];
+  let completed = 0;
+
+  await Promise.all(chunks.map(chunk => new Promise((resolve, reject) => {
+    const worker = new Worker(path.join(__dirname, 'render-worker.js'), {
+      workerData: { items: chunk, outputDir, imageSize },
+    });
+
+    worker.on('message', msg => {
+      if (msg.type === 'manifest') {
+        manifestLines.push({ index: msg.index, line: msg.line });
+        completed++;
+        if (completed % 500 === 0 || completed === totalImages) {
+          console.log(`  ${completed}/${totalImages}`);
+        }
+      } else if (msg.type === 'error') {
+        reject(new Error(msg.message));
+      }
+    });
+
+    worker.on('error', reject);
+    worker.on('exit', code => {
+      if (code !== 0) reject(new Error(`Worker exited with code ${code}`));
+      else resolve();
+    });
+  })));
+
+  // Sort by index and write manifest
+  manifestLines.sort((a, b) => a.index - b.index);
+  const header = 'filename,fen,legal,turn,castling,en_passant,piece_count,has_highlight,style,flipped';
+  const manifestContent = [header, ...manifestLines.map(m => m.line)].join('\n') + '\n';
+  const manifestPath = path.join(outputDir, 'manifest.csv');
+  fs.writeFileSync(manifestPath, manifestContent);
   console.log(`  Manifest: ${manifestPath}`);
 }
 

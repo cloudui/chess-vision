@@ -95,6 +95,22 @@ function randomStyle(renderConfig = {}) {
 }
 
 /**
+ * Pre-load all piece images for the given styles into the cache.
+ * Call once before entering a render loop to eliminate per-piece await overhead.
+ */
+async function preloadPieceImages(styles) {
+  const pieceTypes = Object.keys(PIECE_FILE_NAMES);
+  const uniqueStyles = [...new Set(styles)];
+  const promises = [];
+  for (const style of uniqueStyles) {
+    for (const pieceType of pieceTypes) {
+      promises.push(getPieceImage(style, pieceType));
+    }
+  }
+  await Promise.all(promises);
+}
+
+/**
  * Render a board position to a PNG buffer.
  * lastMove: { from: "e2", to: "e4" } or null
  */
@@ -138,4 +154,4 @@ async function renderBoard(placement, opts) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { renderBoard, randomStyle };
+module.exports = { renderBoard, randomStyle, preloadPieceImages };
