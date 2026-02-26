@@ -19,7 +19,7 @@ splits:
     sources:
       - type: pgn
         pgn: ../data/lichess_db_standard_rated_2015-08.pgn
-        count: 80000
+        count: 150000
 
   test:
     output_dir: ../data/test
@@ -34,7 +34,7 @@ splits:
     output_dir: ../data/test_random
     sources:
       - type: random
-        count: 2500
+        count: 5000
 
 rendering:
   image_size: 480

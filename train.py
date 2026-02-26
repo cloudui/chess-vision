@@ -369,10 +369,10 @@ if __name__ == "__main__":
         }
         torch.save(ckpt, os.path.join(save_dir, "latest.pth"))
 
-        if val_metrics["full_fen_acc"] > best_val_acc:
-            best_val_acc = val_metrics["full_fen_acc"]
+        if val_metrics["board_acc"] > best_val_acc:
+            best_val_acc = val_metrics["board_acc"]
             torch.save(ckpt, os.path.join(save_dir, "best.pth"))
-            print(f"  >> New best val full_fen_acc: {best_val_acc:.4f}")
+            print(f"  >> New best val board_acc: {best_val_acc:.4f}")
             epochs_without_improvement = 0
         else:
             epochs_without_improvement += 1
@@ -386,5 +386,5 @@ if __name__ == "__main__":
     # Shut down DataLoader workers promptly (avoids slow exit with persistent_workers)
     del train_loader, val_loader
 
-    print(f"\nTraining complete. Best val full_fen_acc: {best_val_acc:.4f}")
+    print(f"\nTraining complete. Best val board_acc: {best_val_acc:.4f}")
     print(f"Checkpoints saved to {save_dir}/")
