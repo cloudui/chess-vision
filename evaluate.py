@@ -292,6 +292,7 @@ if __name__ == "__main__":
     parser.add_argument("--checkpoint", required=True, help="Path to model checkpoint")
     parser.add_argument("--test-dir", default=None, help="Override test directory")
     parser.add_argument("--manifest", default=None, help="Path to manifest CSV for test set")
+    parser.add_argument("--max-samples", type=int, default=None, help="Limit number of test samples")
     parser.add_argument("--batch-size", type=int, default=64)
     args = parser.parse_args()
 
@@ -312,6 +313,7 @@ if __name__ == "__main__":
         is_training=False,
         manifest=args.manifest,
         input_size=input_size,
+        max_samples=args.max_samples,
     )
     test_loader = DataLoader(
         test_dataset,
