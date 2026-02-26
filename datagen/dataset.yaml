@@ -40,3 +40,4 @@ rendering:
   image_size: 480
   seed: 42
   highlight_pct: 0.6   # 60% of boards show last-move highlights
+  texture_pct: 0.5     # 50% of boards use texture backgrounds (wood, marble, etc.)

@@ -11,6 +11,8 @@ const PIECE_RES_DIR = path.join(
   __dirname, 'node_modules', 'chess-fen2img', 'src', 'resources'
 );
 
+const BOARDS_DIR = path.join(__dirname, 'boards');
+
 // Auto-discover piece styles: any subdirectory with 12 PNG files
 const PIECE_STYLES = fs.readdirSync(PIECE_RES_DIR)
   .filter(d => {
@@ -20,17 +22,25 @@ const PIECE_STYLES = fs.readdirSync(PIECE_RES_DIR)
   })
   .sort();
 
+// Auto-discover board textures: any image file in boards/
+const BOARD_TEXTURES = fs.existsSync(BOARDS_DIR)
+  ? fs.readdirSync(BOARDS_DIR)
+      .filter(f => /\.(jpg|jpeg|png|svg)$/i.test(f))
+      .sort()
+  : [];
+
 const BOARD_COLORS = [
   { light: '#f0d9b5', dark: '#b58863' },  // classic brown
   { light: '#eeeed2', dark: '#769656' },  // chess.com green
   { light: '#dee3e6', dark: '#8ca2ad' },  // lichess blue
-  { light: '#e8dac2', dark: '#a57551' },  // wood
-  { light: '#f0f0e0', dark: '#6a9b5e' },  // green variant
-  { light: '#e0e0d0', dark: '#7b8ea0' },  // slate
   { light: '#fce4b8', dark: '#d4924a' },  // amber
-  { light: '#d7eaf3', dark: '#5a8bb0' },  // sky blue
-  { light: '#D9E2E8', dark: '#7093A9' },  // glass
-  { light: '#91B5A4', dark: '#6E9281' },  // game room
+  // Covered by textures — kept for reference:
+  // { light: '#e8dac2', dark: '#a57551' },  // wood
+  // { light: '#f0f0e0', dark: '#6a9b5e' },  // green variant
+  // { light: '#e0e0d0', dark: '#7b8ea0' },  // slate
+  // { light: '#d7eaf3', dark: '#5a8bb0' },  // sky blue
+  // { light: '#D9E2E8', dark: '#7093A9' },  // glass
+  // { light: '#91B5A4', dark: '#6E9281' },  // game room
 ];
 
 const HIGHLIGHT_COLORS = [
@@ -50,8 +60,9 @@ const PIECE_FILE_NAMES = {
   wk: 'WhiteKing', bk: 'BlackKing',
 };
 
-// Cache loaded piece images
+// Cache loaded images
 const pieceImageCache = {};
+const boardTextureCache = {};
 
 async function getPieceImage(style, colorType) {
   const key = `${style}/${colorType}`;
@@ -60,6 +71,14 @@ async function getPieceImage(style, colorType) {
     pieceImageCache[key] = await loadImage(imgPath);
   }
   return pieceImageCache[key];
+}
+
+async function getBoardTexture(name) {
+  if (!boardTextureCache[name]) {
+    const imgPath = path.join(BOARDS_DIR, name);
+    boardTextureCache[name] = await loadImage(imgPath);
+  }
+  return boardTextureCache[name];
 }
 
 /** Convert algebraic square (e.g. "e4") to board index (0=a8, 63=h1). */
@@ -86,20 +105,14 @@ function parsePlacement(placement) {
   return squares;
 }
 
-/** Generate a random light/dark board color pair with a cohesive palette.
- *  Picks a random base hue, then creates light and dark variants —
- *  mimicking real chess board themes (brown/brown, green/green, etc.).
- */
+/** Generate a random light/dark board color pair with a cohesive palette. */
 function randomBoardColors() {
-  // Random base hue component weights
   const hr = randInt(0, 255), hg = randInt(0, 255), hb = randInt(0, 255);
-  // Light square: blend base hue toward white (luminance 190-240)
-  const lMix = 0.3 + Math.random() * 0.2; // 30-50% hue influence
+  const lMix = 0.3 + Math.random() * 0.2;
   const lr = Math.round(255 * (1 - lMix) + hr * lMix);
   const lg = Math.round(255 * (1 - lMix) + hg * lMix);
   const lb = Math.round(255 * (1 - lMix) + hb * lMix);
-  // Dark square: blend base hue toward a darker tone (luminance 90-160)
-  const dMix = 0.5 + Math.random() * 0.3; // 50-80% hue influence
+  const dMix = 0.5 + Math.random() * 0.3;
   const dBase = randInt(80, 140);
   const dr = Math.round(dBase * (1 - dMix) + hr * dMix * 0.6);
   const dg = Math.round(dBase * (1 - dMix) + hg * dMix * 0.6);
@@ -113,13 +126,24 @@ function randomBoardColors() {
 /** Pick random visual style options for a board. */
 function randomStyle(renderConfig = {}) {
   const highlightPct = renderConfig.highlight_pct != null ? renderConfig.highlight_pct : 0.6;
-  // 50% chance of using a known board color, 50% fully random
-  const colors = Math.random() < 0.5 ? choice(BOARD_COLORS) : randomBoardColors();
+  const texturePct = renderConfig.texture_pct != null ? renderConfig.texture_pct : 0.5;
+
+  // Board background: texture, known color, or random color
+  let colors = null;
+  let texture = null;
+  if (BOARD_TEXTURES.length > 0 && Math.random() < texturePct) {
+    texture = choice(BOARD_TEXTURES);
+  } else if (Math.random() < 0.5) {
+    colors = choice(BOARD_COLORS);
+  } else {
+    colors = randomBoardColors();
+  }
 
   return {
     style: choice(PIECE_STYLES),
     colors,
-    flipped: choice([false, true]),  // 50/50
+    texture,
+    flipped: choice([false, true]),
     highlightColor: choice(HIGHLIGHT_COLORS),
     showHighlights: Math.random() < highlightPct,
   };
@@ -127,7 +151,6 @@ function randomStyle(renderConfig = {}) {
 
 /**
  * Pre-load all piece images for the given styles into the cache.
- * Call once before entering a render loop to eliminate per-piece await overhead.
  */
 async function preloadPieceImages(styles) {
   const pieceTypes = Object.keys(PIECE_FILE_NAMES);
@@ -146,7 +169,7 @@ async function preloadPieceImages(styles) {
  * lastMove: { from: "e2", to: "e4" } or null
  */
 async function renderBoard(placement, opts) {
-  const { size, light, dark, style, flipped, lastMove, highlightColor, showHighlights } = opts;
+  const { size, light, dark, style, flipped, lastMove, highlightColor, showHighlights, texture } = opts;
 
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
@@ -160,13 +183,22 @@ async function renderBoard(placement, opts) {
     highlights.push(algebraicToIndex(lastMove.to));
   }
 
+  // Draw board background
+  if (texture) {
+    const texImg = await getBoardTexture(texture);
+    ctx.drawImage(texImg, 0, 0, size, size);
+  }
+
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
       const vr = flipped ? 7 - r : r;
       const vf = flipped ? 7 - f : f;
 
-      ctx.fillStyle = (vr + vf) % 2 === 0 ? light : dark;
-      ctx.fillRect(f * sq, r * sq, sq, sq);
+      // Only draw flat color squares if no texture
+      if (!texture) {
+        ctx.fillStyle = (vr + vf) % 2 === 0 ? light : dark;
+        ctx.fillRect(f * sq, r * sq, sq, sq);
+      }
 
       const sqIdx = vr * 8 + vf;
       if (highlights.includes(sqIdx)) {
@@ -185,4 +217,4 @@ async function renderBoard(placement, opts) {
   return canvas.toBuffer('image/png');
 }
 
-module.exports = { renderBoard, randomStyle, preloadPieceImages };
+module.exports = { renderBoard, randomStyle, preloadPieceImages, BOARD_TEXTURES };
