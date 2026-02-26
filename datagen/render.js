@@ -2,6 +2,7 @@
  * Board rendering with @napi-rs/canvas + piece PNGs from chess-fen2img.
  */
 
+const fs = require('fs');
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
 const { choice, randInt } = require('./rand');
@@ -10,10 +11,14 @@ const PIECE_RES_DIR = path.join(
   __dirname, 'node_modules', 'chess-fen2img', 'src', 'resources'
 );
 
-const PIECE_STYLES = [
-  'neo', 'game_room', 'glass', 'wood', 'alpha',
-  'cburnett', 'cheq', 'leipzig', 'merida',
-];
+// Auto-discover piece styles: any subdirectory with 12 PNG files
+const PIECE_STYLES = fs.readdirSync(PIECE_RES_DIR)
+  .filter(d => {
+    const dir = path.join(PIECE_RES_DIR, d);
+    return fs.statSync(dir).isDirectory() &&
+      fs.readdirSync(dir).filter(f => f.endsWith('.png')).length === 12;
+  })
+  .sort();
 
 const BOARD_COLORS = [
   { light: '#f0d9b5', dark: '#b58863' },  // classic brown
