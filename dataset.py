@@ -152,7 +152,7 @@ def get_transform(model_name: str, is_training: bool = False, input_size: int | 
     - Mild color jitter with small hue range (different board themes)
     - Random grayscale (forces shape-based piece recognition)
     - Occasional Gaussian blur (resolution robustness)
-    - Mild perspective distortion (imprecise screenshots)
+    - Occasional Gaussian blur (resolution robustness)
     """
     pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
     data_cfg = resolve_data_config(pretrained_cfg)
@@ -165,7 +165,6 @@ def get_transform(model_name: str, is_training: bool = False, input_size: int | 
     if is_training:
         return transforms.Compose([
             transforms.Resize((input_size, input_size)),
-            transforms.RandomPerspective(distortion_scale=0.05, p=0.2),
             transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.RandomGrayscale(p=0.1),
             transforms.RandomApply([
