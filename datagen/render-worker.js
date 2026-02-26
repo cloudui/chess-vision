@@ -45,13 +45,14 @@ async function run() {
 
     const buffer = await renderBoard(pos.placement, {
       size: imageSize,
-      light: vis.colors.light,
-      dark: vis.colors.dark,
+      light: vis.colors ? vis.colors.light : null,
+      dark: vis.colors ? vis.colors.dark : null,
       style: vis.style,
       flipped: vis.flipped,
       lastMove: pos.lastMove || null,
       highlightColor: vis.highlightColor,
       showHighlights: vis.showHighlights,
+      texture: vis.texture || null,
     });
 
     const filename = `${String(index).padStart(6, '0')}.png`;

@@ -19,3 +19,7 @@ checkpoints_square/
 runs/
 runs_cnn/
 runs_square/
+
+# Downloaded assets (large binary files)
+datagen/boards/
+datagen/node_modules/
