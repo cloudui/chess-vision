@@ -1,12 +1,14 @@
 data:
   train_dir: data/train
   test_dir: data/test
-  max_samples: null
+  max_samples: 10000
   val_split: 0.1
   num_workers: 6
 
 model:
   arch: square
+  name: mobilenetv4_conv_small_050.e3000_r224_in1k
+  pretrained: true
   input_size: 256
   square_overlap: 1.5
   square_input_size: 64
@@ -15,14 +17,14 @@ model:
 training:
   epochs: 10
   batch_size: 64
-  lr: 1.0e-3
+  lr: 1.0e-4
   weight_decay: 0.01
   grad_clip_norm: 1.0
   mixed_precision: true
   label_smoothing: 0.0
   use_class_weights: false
-  turn_loss_weight: 1.0
-  castling_loss_weight: 1.0
+  turn_loss_weight: 0
+  castling_loss_weight: 0
 
 scheduler:
   type: cosine
