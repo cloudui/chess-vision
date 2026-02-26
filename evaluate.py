@@ -1,5 +1,8 @@
 import argparse
+import json
+import os
 from collections import defaultdict
+from datetime import datetime
 
 import torch
 import torch.nn as nn
@@ -214,6 +217,18 @@ def evaluate(model, dataset, loader, device):
     # --- Grouped metrics by manifest properties ---
     print_grouped_metrics(dataset, sample_results)
 
+    # Return summary metrics for logging
+    return {
+        "loss": total_loss / total_boards,
+        "square_acc": correct_squares / total_squares,
+        "board_acc": correct_boards / total_boards,
+        "turn_acc": correct_turn / max(total_legal, 1),
+        "castling_acc": correct_castling_all / max(total_legal, 1),
+        "full_fen_acc": correct_full_fen / max(total_legal, 1),
+        "total_boards": total_boards,
+        "total_legal": total_legal,
+    }
+
 
 def print_grouped_metrics(dataset, sample_results):
     """Print accuracy breakdowns grouped by manifest metadata fields."""
@@ -307,4 +322,18 @@ if __name__ == "__main__":
     )
     print(f"Test set: {len(test_dataset)} images from {test_dir}")
 
-    evaluate(model, test_dataset, test_loader, device)
+    metrics = evaluate(model, test_dataset, test_loader, device)
+
+    # Append eval results to JSONL in the checkpoint directory
+    ckpt_dir = os.path.dirname(os.path.abspath(args.checkpoint))
+    eval_log = os.path.join(ckpt_dir, "eval_results.jsonl")
+    entry = {
+        "timestamp": datetime.now().isoformat(),
+        "checkpoint": args.checkpoint,
+        "test_dir": test_dir,
+        "num_samples": len(test_dataset),
+        "metrics": metrics,
+    }
+    with open(eval_log, "a") as f:
+        f.write(json.dumps(entry) + "\n")
+    print(f"\nResults appended to {eval_log}")
