@@ -1,0 +1,12 @@
+CUDA_VISIBLE_DEVICES=1 python train.py --config config_devserver.yaml --set training.epochs=3
+[Exact config unclear — default config_devserver.yaml with epochs=3 override.
+ Class weights printed, so use_class_weights=true and label_smoothing=0.1 (defaults).]
+
+Device: cuda
+Train: 135000, Val: 15000
+Class weights: tensor([0.1916, 0.4994, 1.1497, 1.1164, 0.9652, 1.4545, 1.2222, 0.4979, 1.1615,
+        1.1041, 0.9627, 1.4525, 1.2222], device='cuda:0')
+Parameters: 85,856,271 trainable / 85,856,271 total
+
+[Training log not fully captured — ran 3 epochs, saved checkpoints after each.
+ Per-epoch OOD evals done separately below.]

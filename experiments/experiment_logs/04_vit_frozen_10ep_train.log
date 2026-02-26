@@ -1,0 +1,70 @@
+python train.py --config config_devserver.yaml \
+  --set training.epochs=10 \
+  model.freeze_backbone=true \
+  training.label_smoothing=0 \
+  training.use_class_weights=false \
+  training.turn_loss_weight=0 \
+  training.castling_loss_weight=0
+Device: cuda
+Train: 135000, Val: 15000
+Parameters: 11,535 trainable / 85,856,271 total
+
+Epoch 1/10
+  Train — loss: 0.6389, sq_acc: 0.8219, board_acc: 0.0878, turn: 0.5004, castling: 0.0724, full_fen: 0.0043
+  Val   — loss: 0.0954, sq_acc: 0.9754, board_acc: 0.4687, turn: 0.4997, castling: 0.0614, full_fen: 0.0157
+  LR: 3.99e-04 | Time: 197.6s
+  >> New best val board_acc: 0.4687
+
+Epoch 2/10
+  Train — loss: 0.1824, sq_acc: 0.9417, board_acc: 0.2241, turn: 0.5013, castling: 0.0718, full_fen: 0.0095
+  Val   — loss: 0.0706, sq_acc: 0.9811, board_acc: 0.5410, turn: 0.5026, castling: 0.0635, full_fen: 0.0194
+  LR: 3.88e-04 | Time: 187.3s
+  >> New best val board_acc: 0.5410
+
+Epoch 3/10
+  Train — loss: 0.1718, sq_acc: 0.9438, board_acc: 0.2325, turn: 0.4999, castling: 0.0727, full_fen: 0.0101
+  Val   — loss: 0.0666, sq_acc: 0.9817, board_acc: 0.5629, turn: 0.5011, castling: 0.0622, full_fen: 0.0204
+  LR: 3.53e-04 | Time: 189.6s
+  >> New best val board_acc: 0.5629
+
+Epoch 4/10
+  Train — loss: 0.1681, sq_acc: 0.9446, board_acc: 0.2325, turn: 0.5016, castling: 0.0729, full_fen: 0.0095
+  Val   — loss: 0.0642, sq_acc: 0.9821, board_acc: 0.5641, turn: 0.4980, castling: 0.0619, full_fen: 0.0197
+  LR: 3.00e-04 | Time: 193.9s
+  >> New best val board_acc: 0.5641
+
+Epoch 5/10
+  Train — loss: 0.1675, sq_acc: 0.9447, board_acc: 0.2345, turn: 0.5031, castling: 0.0738, full_fen: 0.0096
+  Val   — loss: 0.0639, sq_acc: 0.9820, board_acc: 0.5679, turn: 0.4987, castling: 0.0616, full_fen: 0.0205
+  LR: 2.35e-04 | Time: 196.3s
+  >> New best val board_acc: 0.5679
+
+Epoch 6/10
+  Train — loss: 0.1663, sq_acc: 0.9450, board_acc: 0.2330, turn: 0.5039, castling: 0.0741, full_fen: 0.0103
+  Val   — loss: 0.0648, sq_acc: 0.9811, board_acc: 0.5455, turn: 0.5007, castling: 0.0609, full_fen: 0.0187
+  LR: 1.65e-04 | Time: 191.6s
+
+Epoch 7/10
+  Train — loss: 0.1655, sq_acc: 0.9452, board_acc: 0.2350, turn: 0.5006, castling: 0.0723, full_fen: 0.0098
+  Val   — loss: 0.0628, sq_acc: 0.9822, board_acc: 0.5719, turn: 0.4984, castling: 0.0593, full_fen: 0.0197
+  LR: 1.00e-04 | Time: 191.1s
+  >> New best val board_acc: 0.5719
+
+Epoch 8/10
+  Train — loss: 0.1650, sq_acc: 0.9454, board_acc: 0.2335, turn: 0.5023, castling: 0.0739, full_fen: 0.0097
+  Val   — loss: 0.0618, sq_acc: 0.9827, board_acc: 0.5709, turn: 0.5009, castling: 0.0637, full_fen: 0.0203
+  LR: 4.69e-05 | Time: 197.3s
+
+Epoch 9/10
+  Train — loss: 0.1653, sq_acc: 0.9452, board_acc: 0.2336, turn: 0.5028, castling: 0.0739, full_fen: 0.0099
+  Val   — loss: 0.0625, sq_acc: 0.9822, board_acc: 0.5665, turn: 0.5013, castling: 0.0641, full_fen: 0.0203
+  LR: 1.21e-05 | Time: 193.8s
+
+Epoch 10/10
+  Train — loss: 0.1657, sq_acc: 0.9452, board_acc: 0.2347, turn: 0.5002, castling: 0.0732, full_fen: 0.0097
+  Val   — loss: 0.0624, sq_acc: 0.9824, board_acc: 0.5702, turn: 0.5024, castling: 0.0591, full_fen: 0.0191
+  LR: 4.37e-11 | Time: 194.5s
+  Early stopping after 3 epochs without improvement.
+
+Training complete. Best val board_acc: 0.5719
+Checkpoints saved to checkpoints/

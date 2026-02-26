@@ -1,0 +1,26 @@
+CUDA_VISIBLE_DEVICES=1 python train.py --config config_cnn_devserver.yaml
+Device: cuda
+Train: 135000, Val: 15000
+Class weights: tensor([0.1916, 0.4994, 1.1497, 1.1164, 0.9652, 1.4545, 1.2222, 0.4979, 1.1615,
+        1.1041, 0.9627, 1.4525, 1.2222], device='cuda:0')
+Parameters: 27,878,031 trainable / 27,878,031 total
+
+Epoch 1/10
+  Train — loss: 2.1223, sq_acc: 0.9479, board_acc: 0.8361, turn: 0.6278, castling: 0.8087, full_fen: 0.4758
+  Val   — loss: 1.5033, sq_acc: 0.9994, board_acc: 0.9876, turn: 0.8059, castling: 0.9642, full_fen: 0.7685
+  LR: 4.98e-04 | Time: 349.6s
+  >> New best val full_fen_acc: 0.7685
+
+Epoch 2/10
+  Train — loss: 1.4912, sq_acc: 0.9995, board_acc: 0.9864, turn: 0.8158, castling: 0.9664, full_fen: 0.7788
+  Val   — loss: 1.4543, sq_acc: 0.9998, board_acc: 0.9936, turn: 0.8329, castling: 0.9695, full_fen: 0.8039
+  LR: 4.85e-04 | Time: 342.6s
+  >> New best val full_fen_acc: 0.8039
+
+Epoch 3/10
+  Train — loss: 1.4541, sq_acc: 0.9997, board_acc: 0.9907, turn: 0.8321, castling: 0.9776, full_fen: 0.8068
+  Val   — loss: 1.4303, sq_acc: 0.9998, board_acc: 0.9943, turn: 0.8393, castling: 0.9921, full_fen: 0.8285
+  LR: 4.42e-04 | Time: 344.9s
+  >> New best val full_fen_acc: 0.8285
+
+[Interrupted at epoch 4]

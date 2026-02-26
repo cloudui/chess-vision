@@ -1,0 +1,62 @@
+CUDA_VISIBLE_DEVICES=1 python train.py --config config_devserver.yaml --resume checkpoints2/latest.pth
+[Resumed from epoch 1, trained to epoch 10]
+Device: cuda
+Train: 135000, Val: 15000
+Class weights: tensor([0.1916, 0.4994, 1.1497, 1.1164, 0.9652, 1.4545, 1.2222, 0.4979, 1.1615,
+        1.1041, 0.9627, 1.4525, 1.2222], device='cuda:0')
+Parameters: 85,856,271 trainable / 85,856,271 total
+Resumed from epoch 1
+
+Epoch 2/10
+  Train — loss: 1.8248, sq_acc: 0.9895, board_acc: 0.8799, turn: 0.6733, castling: 0.9236, full_fen: 0.5709
+  Val   — loss: 1.5581, sq_acc: 0.9986, board_acc: 0.9550, turn: 0.7730, castling: 0.9707, full_fen: 0.7162
+  LR: 3.88e-04 | Time: 227.3s
+  >> New best val board_acc: 0.9550
+
+Epoch 3/10
+  Train — loss: 1.5126, sq_acc: 0.9989, board_acc: 0.9630, turn: 0.7853, castling: 0.9841, full_fen: 0.7443
+  Val   — loss: 1.5111, sq_acc: 0.9995, board_acc: 0.9833, turn: 0.7849, castling: 0.9858, full_fen: 0.7611
+  LR: 3.53e-04 | Time: 222.4s
+  >> New best val board_acc: 0.9833
+
+Epoch 4/10
+  Train — loss: 1.4860, sq_acc: 0.9992, board_acc: 0.9734, turn: 0.7977, castling: 0.9884, full_fen: 0.7676
+  Val   — loss: 1.4741, sq_acc: 0.9993, board_acc: 0.9815, turn: 0.7989, castling: 0.9910, full_fen: 0.7774
+  LR: 3.00e-04 | Time: 221.1s
+
+Epoch 5/10
+  Train — loss: 1.4691, sq_acc: 0.9994, board_acc: 0.9807, turn: 0.8072, castling: 0.9899, full_fen: 0.7837
+  Val   — loss: 1.4542, sq_acc: 0.9996, board_acc: 0.9874, turn: 0.8158, castling: 0.9919, full_fen: 0.7993
+  LR: 2.35e-04 | Time: 220.1s
+  >> New best val board_acc: 0.9874
+
+Epoch 6/10
+  Train — loss: 1.4564, sq_acc: 0.9996, board_acc: 0.9876, turn: 0.8146, castling: 0.9923, full_fen: 0.7987
+  Val   — loss: 1.4486, sq_acc: 0.9997, board_acc: 0.9908, turn: 0.8154, castling: 0.9937, full_fen: 0.8032
+  LR: 1.65e-04 | Time: 222.5s
+  >> New best val board_acc: 0.9908
+
+Epoch 7/10
+  Train — loss: 1.4479, sq_acc: 0.9997, board_acc: 0.9921, turn: 0.8210, castling: 0.9928, full_fen: 0.8088
+  Val   — loss: 1.4430, sq_acc: 0.9998, board_acc: 0.9950, turn: 0.8203, castling: 0.9937, full_fen: 0.8115
+  LR: 1.00e-04 | Time: 221.1s
+  >> New best val board_acc: 0.9950
+
+Epoch 8/10
+  Train — loss: 1.4390, sq_acc: 0.9998, board_acc: 0.9939, turn: 0.8297, castling: 0.9936, full_fen: 0.8197
+  Val   — loss: 1.4363, sq_acc: 0.9996, board_acc: 0.9921, turn: 0.8289, castling: 0.9939, full_fen: 0.8187
+  LR: 4.69e-05 | Time: 218.9s
+
+Epoch 9/10
+  Train — loss: 1.4292, sq_acc: 0.9999, board_acc: 0.9956, turn: 0.8385, castling: 0.9943, full_fen: 0.8303
+  Val   — loss: 1.4304, sq_acc: 0.9999, board_acc: 0.9975, turn: 0.8344, castling: 0.9943, full_fen: 0.8281
+  LR: 1.21e-05 | Time: 218.3s
+  >> New best val board_acc: 0.9975
+
+Epoch 10/10
+  Train — loss: 1.4221, sq_acc: 0.9999, board_acc: 0.9965, turn: 0.8457, castling: 0.9948, full_fen: 0.8387
+  Val   — loss: 1.4294, sq_acc: 0.9999, board_acc: 0.9970, turn: 0.8359, castling: 0.9946, full_fen: 0.8293
+  LR: 4.37e-11 | Time: 219.5s
+
+Training complete. Best val board_acc: 0.9975
+Checkpoints saved to checkpoints2/
