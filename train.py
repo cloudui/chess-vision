@@ -227,18 +227,31 @@ if __name__ == "__main__":
     max_samples = cfg["data"]["max_samples"]
     input_size = cfg["model"].get("input_size")
 
-    full_dataset = ChessDataset(
+    # Create two datasets: one with training augmentation, one clean for validation.
+    # Both share the same underlying data and use a seeded split for reproducibility.
+    train_full = ChessDataset(
         cfg["data"]["train_dir"],
         model_name=model_name,
         max_samples=max_samples,
         is_training=True,
         input_size=input_size,
     )
-    val_size = int(len(full_dataset) * cfg["data"]["val_split"])
-    train_size = len(full_dataset) - val_size
+    val_full = ChessDataset(
+        cfg["data"]["train_dir"],
+        model_name=model_name,
+        max_samples=max_samples,
+        is_training=False,
+        input_size=input_size,
+    )
+    val_size = int(len(train_full) * cfg["data"]["val_split"])
+    train_size = len(train_full) - val_size
     generator = torch.Generator().manual_seed(42)
-    train_dataset, val_dataset = random_split(
-        full_dataset, [train_size, val_size], generator=generator
+    train_dataset, _ = random_split(
+        train_full, [train_size, val_size], generator=generator
+    )
+    generator = torch.Generator().manual_seed(42)
+    _, val_dataset = random_split(
+        val_full, [train_size, val_size], generator=generator
     )
 
     num_workers = cfg["data"]["num_workers"]
@@ -264,7 +277,7 @@ if __name__ == "__main__":
     # --- Class weights ---
     class_weights = None
     if cfg["training"].get("use_class_weights", False):
-        class_weights = compute_class_weights(full_dataset, device)
+        class_weights = compute_class_weights(train_full, device)
         print(f"Class weights: {class_weights}")
 
     # --- Model ---
