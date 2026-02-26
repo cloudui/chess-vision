@@ -16,7 +16,7 @@ from dataset import (
     INDEX_TO_PIECE,
     labels_to_fen,
 )
-from model import build_model
+from models import build_model
 
 
 def get_device():

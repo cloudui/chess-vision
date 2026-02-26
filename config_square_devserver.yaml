@@ -1,0 +1,37 @@
+data:
+  train_dir: data/train
+  test_dir: data/test
+  max_samples: null
+  val_split: 0.1
+  num_workers: 16
+
+model:
+  arch: square
+  input_size: 256
+  square_overlap: 1.5
+  square_input_size: 64
+  head_dropout: 0.1
+
+training:
+  epochs: 10
+  batch_size: 512
+  lr: 4.0e-3
+  weight_decay: 0.01
+  grad_clip_norm: 1.0
+  mixed_precision: true
+  label_smoothing: 0.0
+  use_class_weights: false
+  turn_loss_weight: 1.0
+  castling_loss_weight: 1.0
+
+scheduler:
+  type: cosine
+  warmup_epochs: 1
+
+checkpointing:
+  save_dir: checkpoints_square
+  save_best: true
+  early_stopping_patience: 3
+
+logging:
+  tensorboard_dir: runs_square
