@@ -14,7 +14,7 @@ model:
   drop_path_rate: 0.1
 
 training:
-  epochs: 20
+  epochs: 10
   batch_size: 256
   lr: 4.0e-4
   weight_decay: 0.05
@@ -27,12 +27,12 @@ training:
 
 scheduler:
   type: cosine
-  warmup_epochs: 2
+  warmup_epochs: 1
 
 checkpointing:
   save_dir: checkpoints
   save_best: true
-  early_stopping_patience: 5
+  early_stopping_patience: 3
 
 logging:
   tensorboard_dir: runs
