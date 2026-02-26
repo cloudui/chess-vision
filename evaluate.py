@@ -217,7 +217,7 @@ def evaluate(model, dataset, loader, device):
 
 def print_grouped_metrics(dataset, sample_results):
     """Print accuracy breakdowns grouped by manifest metadata fields."""
-    if not hasattr(dataset, 'metadata') or not dataset.metadata or not dataset.metadata[0]:
+    if not getattr(dataset, 'use_manifest', False):
         return
 
     # Fields to group by and how to bucket them
@@ -290,12 +290,11 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model"])
 
     test_dir = args.test_dir or cfg["data"]["test_dir"]
-    manifest = args.manifest or cfg["data"].get("manifest_test") or cfg["data"].get("manifest")
     test_dataset = ChessDataset(
         test_dir,
         model_name=cfg["model"]["name"],
         is_training=False,
-        manifest=manifest,
+        manifest=args.manifest,
     )
     test_loader = DataLoader(
         test_dataset,

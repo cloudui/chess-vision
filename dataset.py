@@ -141,10 +141,10 @@ class ChessDataset(Dataset):
     """Dataset of chess board images with per-square piece labels.
 
     Supports two modes:
-    1. Manifest CSV mode: reads from a manifest CSV file.
-       FEN includes placement + turn + castling (+ optional en passant).
-       Extra columns (piece_count, style, flipped, etc.) are stored as
-       metadata for eval grouping.
+    1. Manifest CSV mode: auto-detected at ``{root_dir}/manifest.csv``,
+       or an explicit path via *manifest*.  FEN includes placement + turn +
+       castling (+ optional en passant).  Extra columns (piece_count, style,
+       flipped, etc.) are available via ``get_metadata`` for eval grouping.
     2. Filename mode (legacy/Kaggle): parses FEN from filenames.
 
     Each item returns:
@@ -168,43 +168,43 @@ class ChessDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform or get_transform(model_name, is_training=is_training)
 
-        # metadata[i] holds the full manifest row dict for eval grouping
-        self.metadata = []
+        # Auto-detect manifest when not explicitly provided
+        if manifest is None:
+            manifest = os.path.join(root_dir, "manifest.csv")
 
-        if manifest and os.path.exists(manifest):
-            self.entries = []
+        if os.path.exists(manifest):
+            self.samples = []
             with open(manifest, newline="") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
-                    legal = row.get("legal", "1") == "1"
-                    self.entries.append((row["filename"], row["fen"], legal))
-                    self.metadata.append(dict(row))
+                    self.samples.append(dict(row))
             self.use_manifest = True
         else:
-            self.entries = [
-                (f, None, False) for f in sorted(os.listdir(root_dir))
+            self.samples = [
+                {"filename": f}
+                for f in sorted(os.listdir(root_dir))
                 if f.endswith('.jpeg') or f.endswith('.png')
             ]
-            self.metadata = [{} for _ in self.entries]
             self.use_manifest = False
 
         if max_samples is not None:
-            self.entries = self.entries[:max_samples]
-            self.metadata = self.metadata[:max_samples]
+            self.samples = self.samples[:max_samples]
 
     def __len__(self):
-        return len(self.entries)
+        return len(self.samples)
 
     def get_metadata(self, idx: int) -> dict:
         """Get the raw manifest row dict for a sample (for eval grouping)."""
-        return self.metadata[idx]
+        return self.samples[idx]
 
     def __getitem__(self, idx):
-        filename, fen, legal = self.entries[idx]
+        sample = self.samples[idx]
+        filename = sample["filename"]
         img_path = os.path.join(self.root_dir, filename)
         image = Image.open(img_path).convert('RGB')
         image = self.transform(image)
 
+        fen = sample.get("fen")
         if self.use_manifest and fen:
             labels = parse_full_fen(fen)
         else:
@@ -215,6 +215,10 @@ class ChessDataset(Dataset):
                 "castling": torch.zeros(4, dtype=torch.float),
             }
 
+        if self.use_manifest:
+            legal = sample.get("legal", "1") == "1"
+        else:
+            legal = False
         labels["legal"] = torch.tensor([1.0 if legal else 0.0], dtype=torch.float)
 
         return image, labels

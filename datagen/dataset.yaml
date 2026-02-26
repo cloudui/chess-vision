@@ -4,8 +4,8 @@
 # - Train on legal positions only. Real games cover opening→endgame,
 #   2-32 pieces, and natural turn/castling distributions.
 # - Test on legal positions (primary eval) + random positions (robustness check).
-# - Turn/castling heads share the backbone but are trained separately from
-#   piece placement — the legal flag in the manifest controls this.
+# - Turn/castling loss is always computed during training (all positions are legal).
+#   The legal flag is only used during eval to mask metrics on test_random.
 #
 # Manifest columns for eval slicing:
 #   filename, fen, legal, turn, castling, en_passant, piece_count,
