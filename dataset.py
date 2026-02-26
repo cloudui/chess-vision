@@ -20,6 +20,17 @@ INDEX_TO_PIECE = {v: k for k, v in PIECE_TO_INDEX.items()}
 NUM_CLASSES = 13
 NUM_SQUARES = 64
 
+# Type + color decomposition for piece classification
+# Type: 7 classes (empty, pawn, knight, bishop, rook, queen, king)
+# Color: 3 classes (empty, white, black)
+NUM_PIECE_TYPES = 7
+NUM_PIECE_COLORS = 3
+
+# Maps each of the 13 joint classes to its type index and color index
+#              .  P  N  B  R  Q  K  p  n  b  r  q  k
+CLASS_TO_TYPE = [0, 1, 2, 3, 4, 5, 6, 1, 2, 3, 4, 5, 6]
+CLASS_TO_COLOR = [0, 1, 1, 1, 1, 1, 1, 2, 2, 2, 2, 2, 2]
+
 
 def fen_to_labels(fen: str) -> torch.Tensor:
     """Convert a FEN board string to a (64,) tensor of class indices.
@@ -138,10 +149,10 @@ def get_transform(model_name: str, is_training: bool = False, input_size: int | 
     For training, uses chess-safe augmentations designed for OOD robustness:
     - No horizontal flip (would swap board columns, misaligning labels)
     - No aggressive random crop (would lose squares)
-    - Aggressive color jitter with hue (generalizes across board themes)
+    - Mild color jitter with small hue range (different board themes)
     - Random grayscale (forces shape-based piece recognition)
-    - Random inversion (handles dark-on-dark OOD boards)
-    - Random channel permutation (color-scheme invariance)
+    - Occasional Gaussian blur (resolution robustness)
+    - Mild perspective distortion (imprecise screenshots)
     """
     pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
     data_cfg = resolve_data_config(pretrained_cfg)
@@ -154,13 +165,13 @@ def get_transform(model_name: str, is_training: bool = False, input_size: int | 
     if is_training:
         return transforms.Compose([
             transforms.Resize((input_size, input_size)),
-            transforms.RandomPerspective(distortion_scale=0.05, p=0.3),
-            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.5),
+            transforms.RandomPerspective(distortion_scale=0.05, p=0.2),
+            transforms.ColorJitter(brightness=0.3, contrast=0.3, saturation=0.3, hue=0.1),
             transforms.RandomGrayscale(p=0.1),
-            transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0)),
+            transforms.RandomApply([
+                transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 1.5)),
+            ], p=0.2),
             transforms.ToTensor(),
-            RandomChannelPermutation(p=0.2),
-            RandomInvert(p=0.05),
             transforms.Normalize(mean=mean, std=std),
         ])
     else:
