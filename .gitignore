@@ -12,8 +12,10 @@ __pycache__/
 chess_vit.pth
 checkpoints/
 checkpoints_cnn/
+checkpoints_square/
 
 .ipynb_checkpoints/
 
 runs/
 runs_cnn/
+runs_square/
