@@ -7,6 +7,8 @@ data:
 
 model:
   arch: square
+  name: mobilenetv4_conv_small_050.e3000_r224_in1k
+  pretrained: true
   input_size: 256
   square_overlap: 1.5
   square_input_size: 64
@@ -15,7 +17,7 @@ model:
 training:
   epochs: 10
   batch_size: 512
-  lr: 4.0e-3
+  lr: 1.0e-4
   weight_decay: 0.01
   grad_clip_norm: 1.0
   mixed_precision: true
