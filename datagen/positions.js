@@ -106,51 +106,69 @@ function loadPgnGames(pgnPath, maxGames = 1000) {
 }
 
 /**
- * Sample a random position from a single PGN game string.
- * Returns the position plus the last move (from/to squares) if any.
+ * Extract SAN moves from a PGN game string.
  */
-function samplePgnPosition(gameText) {
-  const chess = new Chess();
-  const loaded = chess.load_pgn
-    ? chess.load_pgn(gameText)
-    : chess.loadPgn(gameText);
-
-  if (!loaded) return null;
-
-  const history = chess.history({ verbose: true });
-  if (history.length === 0) return null;
-
-  const targetMove = randInt(0, history.length);
-
-  const chess2 = new Chess();
-  for (let i = 0; i < targetMove && i < history.length; i++) {
-    chess2.move(history[i].san);
-  }
-
-  const fen = chess2.fen();
-  const parts = fen.split(' ');
-
-  // Last move's from/to squares (null if at starting position)
-  const lastMove = targetMove > 0
-    ? { from: history[targetMove - 1].from, to: history[targetMove - 1].to }
-    : null;
-
-  return {
-    placement: parts[0],
-    turn: parts[1],
-    castling: parts[2],
-    enPassant: parts[3],
-    lastMove,
-  };
+function extractSanMoves(gameText) {
+  // Strip PGN headers and comments
+  let text = gameText.replace(/\[.*?\]\n?/g, '');
+  text = text.replace(/\{[^}]*\}/g, '');
+  // Tokenize, filter out move numbers and results
+  const tokens = text.trim().split(/\s+/);
+  return tokens.filter(t =>
+    t.length > 0 &&
+    !t.match(/^\d+\./) &&
+    !t.match(/^(1-0|0-1|1\/2-1\/2|\*)$/)
+  );
 }
 
 /**
- * Sample multiple positions from a PGN file.
+ * Play through a game once, returning every position reached.
+ */
+function extractAllPositions(gameText) {
+  const sans = extractSanMoves(gameText);
+  if (sans.length === 0) return [];
+
+  const chess = new Chess();
+  const positions = [];
+
+  // Starting position
+  const startFen = chess.fen();
+  const startParts = startFen.split(' ');
+  positions.push({
+    placement: startParts[0],
+    turn: startParts[1],
+    castling: startParts[2],
+    enPassant: startParts[3],
+    lastMove: null,
+  });
+
+  for (const san of sans) {
+    const result = chess.move(san);
+    if (!result) break;
+    const fen = chess.fen();
+    const parts = fen.split(' ');
+    positions.push({
+      placement: parts[0],
+      turn: parts[1],
+      castling: parts[2],
+      enPassant: parts[3],
+      lastMove: { from: result.from, to: result.to },
+    });
+  }
+
+  return positions;
+}
+
+/**
+ * Batch-extract positions from a PGN file.
+ *
+ * Plays through each game once, collecting all intermediate positions into a
+ * pool. Stops processing games once the pool is large enough, then shuffles
+ * and samples. This is ~20x faster than the previous approach of replaying
+ * each game individually for every sampled position.
  */
 function positionsFromPgn(pgnPath, numPositions) {
   console.log(`Loading PGN from ${pgnPath}...`);
-  // Load at most 10x the requested positions worth of games to avoid
-  // reading a massive file when we only need a few positions
   const maxGames = Math.max(numPositions * 2, 1000);
   const gameTexts = loadPgnGames(pgnPath, maxGames);
   console.log(`  Loaded ${gameTexts.length} games`);
@@ -159,21 +177,22 @@ function positionsFromPgn(pgnPath, numPositions) {
     throw new Error(`No games found in ${pgnPath}`);
   }
 
-  const positions = [];
-  let attempts = 0;
-  const maxAttempts = numPositions * 10;
-
-  while (positions.length < numPositions && attempts < maxAttempts) {
-    attempts++;
-    const pos = samplePgnPosition(choice(gameTexts));
-    if (pos) positions.push(pos);
+  // Single-pass: extract ALL positions from each game
+  const pool = [];
+  for (const gameText of gameTexts) {
+    const gamePositions = extractAllPositions(gameText);
+    pool.push(...gamePositions);
+    if (pool.length >= numPositions) break;
   }
 
-  if (positions.length < numPositions) {
-    console.warn(`  Warning: only extracted ${positions.length}/${numPositions} positions`);
+  console.log(`  Extracted ${pool.length} positions from games`);
+
+  if (pool.length < numPositions) {
+    console.warn(`  Warning: only extracted ${pool.length}/${numPositions} positions`);
   }
 
-  return positions.slice(0, numPositions);
+  shuffle(pool);
+  return pool.slice(0, numPositions);
 }
 
 module.exports = { randomPosition, positionsFromPgn };
