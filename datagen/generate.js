@@ -2,16 +2,14 @@
 /**
  * Chess board image dataset generator.
  *
- * Outputs PNGs + manifest.csv compatible with the Python training pipeline.
- *
- * Usage:
- *   node generate.js --num-images 10000 --output-dir ../data/generated --seed 42
- *   node generate.js --num-images 10000 --output-dir ../data/generated \
- *     --pgn ../data/pgn/lichess_2013-01.pgn --legal-ratio 0.5
+ * Two modes:
+ *   CLI:    node generate.js --num-images 1000 --output-dir ../data/generated --seed 42
+ *   Config: node generate.js --config dataset.yaml
  */
 
 const fs = require('fs');
 const path = require('path');
+const yaml = require('js-yaml');
 const { setSeed, shuffle } = require('./rand');
 const { randomPosition, positionsFromPgn } = require('./positions');
 const { renderBoard, randomStyle } = require('./render');
@@ -33,36 +31,35 @@ function boardFenForOrientation(pos, flipped) {
 }
 
 // ---------------------------------------------------------------------------
-// Main generation
+// Generate a single split
 // ---------------------------------------------------------------------------
 
-async function generateDataset(opts) {
-  const { numImages, outputDir, pgnPath, legalRatio, imageSize } = opts;
+async function generateSplit(name, splitConfig, rendering) {
+  const { output_dir: outputDir, sources } = splitConfig;
+  const imageSize = rendering.image_size || 480;
 
   fs.mkdirSync(outputDir, { recursive: true });
 
-  // Build positions
-  let numLegal = 0;
-  let numRandom = numImages;
-  let legalPositions = [];
-
-  if (pgnPath) {
-    numLegal = Math.round(numImages * legalRatio);
-    numRandom = numImages - numLegal;
-    legalPositions = positionsFromPgn(pgnPath, numLegal);
-    numLegal = legalPositions.length;
-    numRandom = numImages - numLegal;
+  // Collect positions from all sources
+  const positions = [];
+  for (const source of sources) {
+    if (source.type === 'pgn') {
+      const pgnPositions = positionsFromPgn(source.pgn, source.count);
+      for (const pos of pgnPositions) {
+        positions.push({ pos, legal: true });
+      }
+    } else if (source.type === 'random') {
+      for (let i = 0; i < source.count; i++) {
+        positions.push({ pos: randomPosition(), legal: false });
+      }
+    }
   }
 
-  console.log(`Generating ${numImages} images: ${numLegal} legal + ${numRandom} random`);
-
-  const positions = [
-    ...legalPositions.map(pos => ({ pos, legal: true })),
-    ...Array.from({ length: numRandom }, () => ({ pos: randomPosition(), legal: false })),
-  ];
   shuffle(positions);
 
-  // Generate images + manifest
+  const totalImages = positions.length;
+  console.log(`\n[${name}] Generating ${totalImages} images → ${outputDir}`);
+
   const manifestPath = path.join(outputDir, 'manifest.csv');
   const manifestLines = ['filename,fen,legal'];
 
@@ -76,8 +73,9 @@ async function generateDataset(opts) {
       dark: vis.colors.dark,
       style: vis.style,
       flipped: vis.flipped,
-      highlights: vis.highlights,
+      lastMove: pos.lastMove || null,
       highlightColor: vis.highlightColor,
+      showHighlights: vis.showHighlights,
     });
 
     const filename = `${String(i).padStart(6, '0')}.png`;
@@ -92,16 +90,59 @@ async function generateDataset(opts) {
   }
 
   fs.writeFileSync(manifestPath, manifestLines.join('\n') + '\n');
-  console.log(`Done. Manifest: ${manifestPath}`);
+  console.log(`  Manifest: ${manifestPath}`);
 }
 
 // ---------------------------------------------------------------------------
-// CLI
+// Config mode
+// ---------------------------------------------------------------------------
+
+async function runFromConfig(configPath) {
+  const config = yaml.load(fs.readFileSync(configPath, 'utf-8'));
+  const rendering = config.rendering || {};
+
+  if (rendering.seed != null) setSeed(rendering.seed);
+
+  const splits = config.splits || {};
+  for (const [name, splitConfig] of Object.entries(splits)) {
+    await generateSplit(name, splitConfig, rendering);
+  }
+
+  console.log('\nAll splits complete.');
+}
+
+// ---------------------------------------------------------------------------
+// CLI mode (legacy)
+// ---------------------------------------------------------------------------
+
+async function runFromCli(opts) {
+  if (opts.seed !== null) setSeed(opts.seed);
+
+  // Build a synthetic split config from CLI args
+  const sources = [];
+  if (opts.pgnPath) {
+    const numLegal = Math.round(opts.numImages * opts.legalRatio);
+    const numRandom = opts.numImages - numLegal;
+    if (numLegal > 0) sources.push({ type: 'pgn', pgn: opts.pgnPath, count: numLegal });
+    if (numRandom > 0) sources.push({ type: 'random', count: numRandom });
+  } else {
+    sources.push({ type: 'random', count: opts.numImages });
+  }
+
+  await generateSplit('default', {
+    output_dir: opts.outputDir,
+    sources,
+  }, { image_size: opts.imageSize });
+}
+
+// ---------------------------------------------------------------------------
+// CLI parsing
 // ---------------------------------------------------------------------------
 
 function parseArgs() {
   const args = process.argv.slice(2);
   const opts = {
+    configPath: null,
     numImages: 1000,
     outputDir: '../data/generated',
     pgnPath: null,
@@ -112,6 +153,7 @@ function parseArgs() {
 
   for (let i = 0; i < args.length; i++) {
     switch (args[i]) {
+      case '--config':      opts.configPath = args[++i]; break;
       case '--num-images':  opts.numImages = parseInt(args[++i], 10); break;
       case '--output-dir':  opts.outputDir = args[++i]; break;
       case '--pgn':         opts.pgnPath = args[++i]; break;
@@ -129,8 +171,12 @@ function parseArgs() {
 
 async function main() {
   const opts = parseArgs();
-  if (opts.seed !== null) setSeed(opts.seed);
-  await generateDataset(opts);
+
+  if (opts.configPath) {
+    await runFromConfig(opts.configPath);
+  } else {
+    await runFromCli(opts);
+  }
 }
 
 main().catch((err) => {

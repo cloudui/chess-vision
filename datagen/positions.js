@@ -54,7 +54,7 @@ function randomPosition() {
     ranks.push(rankStr);
   }
 
-  return { placement: ranks.join('/'), turn: 'w', castling: '-' };
+  return { placement: ranks.join('/'), turn: 'w', castling: '-', lastMove: null };
 }
 
 /**
@@ -107,6 +107,7 @@ function loadPgnGames(pgnPath, maxGames = 1000) {
 
 /**
  * Sample a random position from a single PGN game string.
+ * Returns the position plus the last move (from/to squares) if any.
  */
 function samplePgnPosition(gameText) {
   const chess = new Chess();
@@ -116,23 +117,30 @@ function samplePgnPosition(gameText) {
 
   if (!loaded) return null;
 
-  const history = chess.history();
+  const history = chess.history({ verbose: true });
   if (history.length === 0) return null;
 
   const targetMove = randInt(0, history.length);
 
   const chess2 = new Chess();
-  chess2.load_pgn ? chess2.load_pgn(gameText) : chess2.loadPgn(gameText);
-  const moves = chess2.history();
-
-  const chess3 = new Chess();
-  for (let i = 0; i < targetMove && i < moves.length; i++) {
-    chess3.move(moves[i]);
+  for (let i = 0; i < targetMove && i < history.length; i++) {
+    chess2.move(history[i].san);
   }
 
-  const fen = chess3.fen();
+  const fen = chess2.fen();
   const parts = fen.split(' ');
-  return { placement: parts[0], turn: parts[1], castling: parts[2] };
+
+  // Last move's from/to squares (null if at starting position)
+  const lastMove = targetMove > 0
+    ? { from: history[targetMove - 1].from, to: history[targetMove - 1].to }
+    : null;
+
+  return {
+    placement: parts[0],
+    turn: parts[1],
+    castling: parts[2],
+    lastMove,
+  };
 }
 
 /**

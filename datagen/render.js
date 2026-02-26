@@ -4,7 +4,7 @@
 
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
-const { choice, sample } = require('./rand');
+const { choice } = require('./rand');
 
 const PIECE_RES_DIR = path.join(
   __dirname, 'node_modules', 'chess-fen2img', 'src', 'resources'
@@ -57,6 +57,13 @@ async function getPieceImage(style, colorType) {
   return pieceImageCache[key];
 }
 
+/** Convert algebraic square (e.g. "e4") to board index (0=a8, 63=h1). */
+function algebraicToIndex(sq) {
+  const file = sq.charCodeAt(0) - 97; // 'a' = 0
+  const rank = parseInt(sq[1]) - 1;   // '1' = 0
+  return (7 - rank) * 8 + file;
+}
+
 /** Parse FEN placement into array of {color, type} or null per square. */
 function parsePlacement(placement) {
   const squares = [];
@@ -76,29 +83,34 @@ function parsePlacement(placement) {
 
 /** Pick random visual style options for a board. */
 function randomStyle() {
-  const highlights = [];
-  if (choice([true, false])) {
-    const num = choice([1, 2, 3, 4]);
-    highlights.push(...sample(Array.from({ length: 64 }, (_, i) => i), num));
-  }
-
   return {
     style: choice(PIECE_STYLES),
     colors: choice(BOARD_COLORS),
     flipped: choice([false, false, false, true]),  // ~25% chance
     highlightColor: choice(HIGHLIGHT_COLORS),
-    highlights,
+    // ~30% no highlights (simulates starting position or no-highlight screenshots)
+    showHighlights: choice([true, true, true, true, true, true, true, false, false, false]),
   };
 }
 
-/** Render a board position to a PNG buffer. */
+/**
+ * Render a board position to a PNG buffer.
+ * lastMove: { from: "e2", to: "e4" } or null
+ */
 async function renderBoard(placement, opts) {
-  const { size, light, dark, style, flipped, highlights, highlightColor } = opts;
+  const { size, light, dark, style, flipped, lastMove, highlightColor, showHighlights } = opts;
 
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
   const sq = size / 8;
   const squares = parsePlacement(placement);
+
+  // Compute highlighted square indices from last move
+  const highlights = [];
+  if (showHighlights && lastMove) {
+    highlights.push(algebraicToIndex(lastMove.from));
+    highlights.push(algebraicToIndex(lastMove.to));
+  }
 
   for (let r = 0; r < 8; r++) {
     for (let f = 0; f < 8; f++) {
