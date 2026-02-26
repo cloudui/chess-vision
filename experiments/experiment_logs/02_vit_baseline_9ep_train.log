@@ -1,0 +1,12 @@
+CUDA_VISIBLE_DEVICES=0 python train.py --config config_devserver.yaml
+[Resumed from epoch 3, trained to epoch 9]
+
+Epoch 4-9 training (continued from experiment 01):
+  ...
+  Val best full_fen_acc kept improving through epoch 9.
+
+Epoch 9/10
+  Train — loss: ..., sq_acc: ..., board_acc: ..., turn: ..., castling: ..., full_fen: ...
+  Val   — ...
+
+[Full training log not captured — only eval results available]

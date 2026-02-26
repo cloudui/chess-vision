@@ -1,0 +1,93 @@
+Per-epoch Kaggle OOD evaluation (checkpoints saved after each epoch).
+Config: config_devserver.yaml defaults (label_smoothing=0.1, use_class_weights=true).
+
+=== EPOCH 1 (best.pth) ===
+CUDA_VISIBLE_DEVICES=1 python evaluate.py --checkpoint checkpoints2/latest.pth --test-dir kaggle/test
+
+Overall (20000 images, 0 legal):
+  Loss:            0.0830
+  Per-square acc:  0.9915 (1269134/1280000)
+  Full-board acc:  0.8022 (16044/20000)
+
+Per-piece accuracy:
+  empty: 0.9976  (1077723/1080344)
+      P: 0.9911  (17958/18119)
+      N: 0.8717  (15348/17606)
+      B: 0.9602  (16995/17700)
+      R: 0.9960  (17465/17536)
+      Q: 0.8964  (7875/8785)
+      K: 0.9988  (19975/20000)
+      p: 0.9998  (17927/17930)
+      n: 0.8716  (15364/17628)
+      b: 0.9357  (16557/17695)
+      r: 0.9989  (17870/17889)
+      q: 0.9422  (8261/8768)
+      k: 0.9908  (19816/20000)
+
+Confusion matrix (rows=true, cols=predicted):
+        empty     P     N     B     R     Q     K     p     n     b     r     q     k
+  empty 1077723  1242     2   198    76    58     7   723    50    26   184    55     0
+     P      0 17958     0    35     0     0    30    96     0     0     0     0     0
+     N      0   529 15348     1  1716     0     0     0     9     0     3     0     0
+     B      0   134   546 16995     9     0     0     0     2    14     0     0     0
+     R      0    51     0     0 17465     0     0     0     0     0    20     0     0
+     Q      0     0     0     3     1  7875   902     0     0     0     0     3     1
+     K      0     3     0     7     1     0 19975     0     0     0     0     0    14
+     p      0     1     0     0     0     0     0 17927     0     2     0     0     0
+     n      0     0     0     0     3     0     0   287 15364     0  1965     9     0
+     b      0     0     0     1     0     0     0   559   543 16557    34     0     1
+     r      0     0     0     0    14     0     0     5     0     0 17870     0     0
+     q      0     0     0     0     0     1     0     7     0     1     4  8261   494
+     k      0     0     0     0     0     0     0   118     1     1    46    18 19816
+
+Worst: 14/64 squares
+
+=== EPOCH 2 ===
+CUDA_VISIBLE_DEVICES=0 python evaluate.py --checkpoint checkpoints2/latest.pth --test-dir kaggle/test
+
+Overall (20000 images, 0 legal):
+  Loss:            0.1202
+  Per-square acc:  0.9792 (1253317/1280000)
+  Full-board acc:  0.6368 (12736/20000)
+
+Per-piece accuracy:
+  empty: 0.9842  (1063234/1080344)
+      P: 0.9709  (17592/18119)
+      N: 0.8694  (15307/17606)
+      B: 0.9640  (17062/17700)
+      R: 0.9551  (16748/17536)
+      Q: 0.9597  (8431/8785)
+      K: 0.9643  (19285/20000)
+      p: 0.9872  (17700/17930)
+      n: 0.8815  (15539/17628)
+      b: 0.9339  (16526/17695)
+      r: 0.9869  (17654/17889)
+      q: 0.9755  (8553/8768)
+      k: 0.9843  (19686/20000)
+
+Worst: 32/64 squares (mass hallucination)
+
+=== EPOCH 3 ===
+CUDA_VISIBLE_DEVICES=0 python evaluate.py --checkpoint checkpoints2/latest.pth --test-dir kaggle/test
+
+Overall (20000 images, 0 legal):
+  Loss:            0.1571
+  Per-square acc:  0.9731 (1245530/1280000)
+  Full-board acc:  0.6104 (12208/20000)
+
+Per-piece accuracy:
+  empty: 0.9772  (1055682/1080344)
+      P: 0.9691  (17560/18119)
+      N: 0.8683  (15287/17606)
+      B: 0.9621  (17029/17700)
+      R: 0.9544  (16736/17536)
+      Q: 0.9517  (8361/8785)
+      K: 0.9637  (19275/20000)
+      p: 0.9888  (17730/17930)
+      n: 0.8839  (15581/17628)
+      b: 0.9346  (16537/17695)
+      r: 0.9869  (17655/17889)
+      q: 0.9402  (8244/8768)
+      k: 0.9927  (19853/20000)
+
+Worst: 33/64 squares (mass hallucination)

@@ -1,0 +1,50 @@
+CUDA_VISIBLE_DEVICES=1 python evaluate.py --checkpoint checkpoints2/best.pth --test-dir kaggle/test
+[This checkpoint was from a 3-epoch run. Config: config_devserver.yaml defaults.
+ Class weights and label smoothing were ON (defaults from config_devserver.yaml).]
+
+Device: cuda
+Test set: 20000 images from kaggle/test
+
+============================================================
+EVALUATION RESULTS
+============================================================
+
+Overall (20000 images, 0 legal):
+  Loss:            0.0796
+  Per-square acc:  0.9927 (1270668/1280000)
+  Full-board acc:  0.8262 (16523/20000)
+
+No legal positions in dataset — turn/castling metrics skipped.
+
+Per-piece accuracy:
+  empty: 0.9993  (1079557/1080344)
+      P: 0.9992  (18104/18119)
+      N: 0.8731  (15371/17606)
+      B: 0.9675  (17124/17700)
+      R: 0.9993  (17523/17536)
+      Q: 0.8875  (7797/8785)
+      K: 1.0000  (20000/20000)
+      p: 0.9983  (17900/17930)
+      n: 0.8706  (15347/17628)
+      b: 0.9337  (16522/17695)
+      r: 0.9985  (17863/17889)
+      q: 0.8788  (7705/8768)
+      k: 0.9928  (19855/20000)
+
+Confusion matrix (rows=true, cols=predicted):
+        empty     P     N     B     R     Q     K     p     n     b     r     q     k
+  empty 1079557   143    48   221     2   126     2    98    35    27    57     0    28
+     P      0 18104     0     7     0     0     8     0     0     0     0     0     0
+     N      0   225 15371   170  1793     0    46     0     0     0     1     0     0
+     B      0     9   564 17124     0     0     1     0     1     1     0     0     0
+     R      0    13     0     0 17523     0     0     0     0     0     0     0     0
+     Q      0     0     0     0     1  7797   976     0     0     0     0    11     0
+     K      0     0     0     0     0     0 20000     0     0     0     0     0     0
+     p      0    30     0     0     0     0     0 17900     0     0     0     0     0
+     n      0     0    20     0     5     0     0   575 15347     6  1657     0    18
+     b      0     0     0    23     0     0     0   564   583 16522     2     0     1
+     r      0     0     0     0    16     0     0    10     0     0 17863     0     0
+     q      0     0     0     0     0    23     0     3     6     3     5  7705  1023
+     k      1     0     0     0     0     0   119    20     3     0     2     0 19855
+
+Worst: 11/64 squares
