@@ -11,12 +11,13 @@ class ChessViT(nn.Module):
     from the CLS token of a ViT backbone.
     """
 
-    def __init__(self, backbone: nn.Module, hidden_dim: int):
+    def __init__(self, backbone: nn.Module, hidden_dim: int, head_dropout: float = 0.0):
         super().__init__()
         self.backbone = backbone
-        self.piece_head = nn.Linear(hidden_dim, NUM_SQUARES * NUM_CLASSES)
-        self.turn_head = nn.Linear(hidden_dim, 1)
-        self.castling_head = nn.Linear(hidden_dim, 4)
+        drop = nn.Dropout(head_dropout)
+        self.piece_head = nn.Sequential(drop, nn.Linear(hidden_dim, NUM_SQUARES * NUM_CLASSES))
+        self.turn_head = nn.Sequential(drop, nn.Linear(hidden_dim, 1))
+        self.castling_head = nn.Sequential(drop, nn.Linear(hidden_dim, 4))
 
     def forward(self, x):
         features = self.backbone.forward_features(x)  # (B, num_tokens, D)
@@ -34,6 +35,7 @@ def build_model(cfg: dict) -> nn.Module:
         cfg["model"]["name"],
         pretrained=cfg["model"]["pretrained"],
         num_classes=0,  # remove default classification head
+        drop_path_rate=cfg["model"].get("drop_path_rate", 0.0),
     )
     hidden_dim = backbone.num_features
 
@@ -41,4 +43,5 @@ def build_model(cfg: dict) -> nn.Module:
         for param in backbone.parameters():
             param.requires_grad = False
 
-    return ChessViT(backbone, hidden_dim)
+    head_dropout = cfg["model"].get("head_dropout", 0.0)
+    return ChessViT(backbone, hidden_dim, head_dropout=head_dropout)
