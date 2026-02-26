@@ -9,6 +9,8 @@ model:
   name: vit_base_patch16_224.augreg_in21k
   pretrained: true
   freeze_backbone: false   # if true, only train the classification head
+  head_dropout: 0.1
+  drop_path_rate: 0.1
 
 training:
   epochs: 20
@@ -17,6 +19,7 @@ training:
   weight_decay: 0.01
   grad_clip_norm: 1.0
   mixed_precision: true
+  label_smoothing: 0.1
   turn_loss_weight: 1.0
   castling_loss_weight: 1.0
 

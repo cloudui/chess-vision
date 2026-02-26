@@ -89,7 +89,9 @@ def run_epoch(model, loader, device, use_amp, cfg, training=False,
     """
     model.train(training)
 
-    piece_criterion = nn.CrossEntropyLoss()
+    piece_criterion = nn.CrossEntropyLoss(
+        label_smoothing=cfg["training"].get("label_smoothing", 0.0)
+    )
     turn_criterion = nn.BCEWithLogitsLoss()
     castling_criterion = nn.BCEWithLogitsLoss()
 
@@ -351,5 +353,9 @@ if __name__ == "__main__":
             break
 
     writer.close()
+
+    # Shut down DataLoader workers promptly (avoids slow exit with persistent_workers)
+    del train_loader, val_loader
+
     print(f"\nTraining complete. Best val square_acc: {best_val_acc:.4f}")
     print(f"Checkpoints saved to {save_dir}/")

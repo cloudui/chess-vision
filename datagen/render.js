@@ -88,7 +88,7 @@ function randomStyle(renderConfig = {}) {
   return {
     style: choice(PIECE_STYLES),
     colors: choice(BOARD_COLORS),
-    flipped: choice([false, false, false, true]),  // ~25% chance
+    flipped: choice([false, true]),  // 50/50
     highlightColor: choice(HIGHLIGHT_COLORS),
     showHighlights: Math.random() < highlightPct,
   };
