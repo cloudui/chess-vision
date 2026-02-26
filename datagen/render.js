@@ -81,12 +81,24 @@ function parsePlacement(placement) {
   return squares;
 }
 
-/** Generate a random light/dark board color pair. */
+/** Generate a random light/dark board color pair with a cohesive palette.
+ *  Picks a random base hue, then creates light and dark variants —
+ *  mimicking real chess board themes (brown/brown, green/green, etc.).
+ */
 function randomBoardColors() {
-  // Light square: high luminance (180-240 per channel)
-  const lr = randInt(170, 245), lg = randInt(170, 245), lb = randInt(170, 245);
-  // Dark square: lower luminance (80-160 per channel)
-  const dr = randInt(60, 170), dg = randInt(60, 170), db = randInt(60, 170);
+  // Random base hue component weights
+  const hr = randInt(0, 255), hg = randInt(0, 255), hb = randInt(0, 255);
+  // Light square: blend base hue toward white (luminance 190-240)
+  const lMix = 0.3 + Math.random() * 0.2; // 30-50% hue influence
+  const lr = Math.round(255 * (1 - lMix) + hr * lMix);
+  const lg = Math.round(255 * (1 - lMix) + hg * lMix);
+  const lb = Math.round(255 * (1 - lMix) + hb * lMix);
+  // Dark square: blend base hue toward a darker tone (luminance 90-160)
+  const dMix = 0.5 + Math.random() * 0.3; // 50-80% hue influence
+  const dBase = randInt(80, 140);
+  const dr = Math.round(dBase * (1 - dMix) + hr * dMix * 0.6);
+  const dg = Math.round(dBase * (1 - dMix) + hg * dMix * 0.6);
+  const db = Math.round(dBase * (1 - dMix) + hb * dMix * 0.6);
   return {
     light: `rgb(${lr}, ${lg}, ${lb})`,
     dark: `rgb(${dr}, ${dg}, ${db})`,
