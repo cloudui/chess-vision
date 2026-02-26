@@ -1,5 +1,8 @@
 import argparse
+import json
 import os
+import subprocess
+import sys
 import time
 
 import torch
@@ -336,6 +339,36 @@ if __name__ == "__main__":
     patience = cfg["checkpointing"]["early_stopping_patience"]
     epochs_without_improvement = 0
 
+    # --- Run metadata ---
+    def get_git_info():
+        try:
+            git_hash = subprocess.check_output(
+                ["git", "rev-parse", "HEAD"], stderr=subprocess.DEVNULL
+            ).decode().strip()
+            git_dirty = bool(subprocess.check_output(
+                ["git", "status", "--porcelain"], stderr=subprocess.DEVNULL
+            ).decode().strip())
+            return git_hash, git_dirty
+        except Exception:
+            return None, None
+
+    git_hash, git_dirty = get_git_info()
+    run_meta = {
+        "timestamp": datetime.now().isoformat(),
+        "command": sys.argv,
+        "config": cfg,
+        "git_hash": git_hash,
+        "git_dirty": git_dirty,
+        "device": str(device),
+        "train_size": train_size,
+        "val_size": val_size,
+        "tb_dir": tb_dir,
+    }
+    meta_path = os.path.join(save_dir, "run_meta.json")
+    with open(meta_path, "w") as f:
+        json.dump(run_meta, f, indent=2)
+    print(f"Run metadata: {meta_path}")
+
     # --- Training loop ---
     epochs = cfg["training"]["epochs"]
     global_step = 0
@@ -411,6 +444,14 @@ if __name__ == "__main__":
 
     # Shut down DataLoader workers promptly (avoids slow exit with persistent_workers)
     del train_loader, val_loader
+
+    # Update run metadata with final results
+    run_meta["best_val_acc"] = best_val_acc
+    run_meta["total_epochs"] = epoch + 1
+    run_meta["final_train_metrics"] = train_metrics
+    run_meta["final_val_metrics"] = val_metrics
+    with open(meta_path, "w") as f:
+        json.dump(run_meta, f, indent=2)
 
     print(f"\nTraining complete. Best val board_acc: {best_val_acc:.4f}")
     print(f"Checkpoints saved to {save_dir}/")
