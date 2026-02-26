@@ -82,14 +82,15 @@ function parsePlacement(placement) {
 }
 
 /** Pick random visual style options for a board. */
-function randomStyle() {
+function randomStyle(renderConfig = {}) {
+  const highlightPct = renderConfig.highlight_pct != null ? renderConfig.highlight_pct : 0.6;
+
   return {
     style: choice(PIECE_STYLES),
     colors: choice(BOARD_COLORS),
     flipped: choice([false, false, false, true]),  // ~25% chance
     highlightColor: choice(HIGHLIGHT_COLORS),
-    // ~30% no highlights (simulates starting position or no-highlight screenshots)
-    showHighlights: choice([true, true, true, true, true, true, true, false, false, false]),
+    showHighlights: Math.random() < highlightPct,
   };
 }
 

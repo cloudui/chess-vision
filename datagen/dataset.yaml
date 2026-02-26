@@ -7,6 +7,10 @@
 # - Turn/castling heads share the backbone but are trained separately from
 #   piece placement — the legal flag in the manifest controls this.
 #
+# Manifest columns for eval slicing:
+#   filename, fen, legal, turn, castling, en_passant, piece_count,
+#   has_highlight, style, flipped
+#
 # Run: node generate.js --config dataset.yaml
 
 splits:
@@ -35,3 +39,4 @@ splits:
 rendering:
   image_size: 480
   seed: 42
+  highlight_pct: 0.6   # 60% of boards show last-move highlights

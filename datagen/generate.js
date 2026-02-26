@@ -19,7 +19,7 @@ const { renderBoard, randomStyle } = require('./render');
 // ---------------------------------------------------------------------------
 
 function boardFenForOrientation(pos, flipped) {
-  let { placement, turn, castling } = pos;
+  let { placement, turn, castling, enPassant } = pos;
 
   if (flipped) {
     const ranks = placement.split('/');
@@ -27,7 +27,20 @@ function boardFenForOrientation(pos, flipped) {
     placement = ranks.map(r => r.split('').reverse().join('')).join('/');
   }
 
-  return `${placement} ${turn} ${castling}`;
+  return `${placement} ${turn} ${castling} ${enPassant}`;
+}
+
+// ---------------------------------------------------------------------------
+// Helpers
+// ---------------------------------------------------------------------------
+
+/** Count pieces on the board from a FEN placement string. */
+function countPieces(placement) {
+  let count = 0;
+  for (const ch of placement) {
+    if (ch !== '/' && (ch < '1' || ch > '8')) count++;
+  }
+  return count;
 }
 
 // ---------------------------------------------------------------------------
@@ -61,11 +74,15 @@ async function generateSplit(name, splitConfig, rendering) {
   console.log(`\n[${name}] Generating ${totalImages} images → ${outputDir}`);
 
   const manifestPath = path.join(outputDir, 'manifest.csv');
-  const manifestLines = ['filename,fen,legal'];
+  const manifestLines = [
+    'filename,fen,legal,turn,castling,en_passant,piece_count,has_highlight,style,flipped',
+  ];
 
   for (let i = 0; i < positions.length; i++) {
     const { pos, legal } = positions[i];
-    const vis = randomStyle();
+    const vis = randomStyle(rendering);
+
+    const hasHighlight = vis.showHighlights && pos.lastMove != null;
 
     const buffer = await renderBoard(pos.placement, {
       size: imageSize,
@@ -82,7 +99,20 @@ async function generateSplit(name, splitConfig, rendering) {
     fs.writeFileSync(path.join(outputDir, filename), buffer);
 
     const fen = boardFenForOrientation(pos, vis.flipped);
-    manifestLines.push(`${filename},${fen},${legal ? 1 : 0}`);
+    const pieceCount = countPieces(pos.placement);
+
+    manifestLines.push([
+      filename,
+      fen,
+      legal ? 1 : 0,
+      pos.turn,
+      pos.castling,
+      pos.enPassant,
+      pieceCount,
+      hasHighlight ? 1 : 0,
+      vis.style,
+      vis.flipped ? 1 : 0,
+    ].join(','));
 
     if ((i + 1) % 100 === 0 || i + 1 === positions.length) {
       console.log(`  ${i + 1}/${positions.length}`);
@@ -118,7 +148,6 @@ async function runFromConfig(configPath) {
 async function runFromCli(opts) {
   if (opts.seed !== null) setSeed(opts.seed);
 
-  // Build a synthetic split config from CLI args
   const sources = [];
   if (opts.pgnPath) {
     const numLegal = Math.round(opts.numImages * opts.legalRatio);
