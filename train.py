@@ -313,8 +313,11 @@ if __name__ == "__main__":
             print(f"Resumed from epoch {start_epoch}")
 
     # --- Logging ---
-    os.makedirs(cfg["logging"]["tensorboard_dir"], exist_ok=True)
-    writer = SummaryWriter(log_dir=cfg["logging"]["tensorboard_dir"])
+    from datetime import datetime
+    run_name = datetime.now().strftime("%Y%m%d_%H%M%S")
+    tb_dir = os.path.join(cfg["logging"]["tensorboard_dir"], run_name)
+    os.makedirs(tb_dir, exist_ok=True)
+    writer = SummaryWriter(log_dir=tb_dir)
 
     # --- Checkpointing ---
     save_dir = cfg["checkpointing"]["save_dir"]
