@@ -1,4 +1,5 @@
 import argparse
+from collections import defaultdict
 
 import torch
 import torch.nn as nn
@@ -23,8 +24,26 @@ def get_device():
     return torch.device("cpu")
 
 
+def piece_count_bucket(count):
+    """Bucket piece counts into game phases."""
+    count = int(count)
+    if count <= 10:
+        return "endgame (2-10)"
+    elif count <= 20:
+        return "midgame (11-20)"
+    else:
+        return "opening (21-32)"
+
+
+def castling_category(castling_str):
+    """Categorize castling rights."""
+    if castling_str == "-":
+        return "none"
+    return "has_rights"
+
+
 @torch.no_grad()
-def evaluate(model, loader, device):
+def evaluate(model, dataset, loader, device):
     model.eval()
     piece_criterion = nn.CrossEntropyLoss()
 
@@ -35,23 +54,19 @@ def evaluate(model, loader, device):
     total_boards = 0
     correct_turn = 0
     total_legal = 0
-    # Per-castling-right tracking: [K, Q, k, q]
     correct_castling_per_right = torch.zeros(4, dtype=torch.long)
     correct_castling_all = 0
     correct_full_fen = 0
 
-    # Per-piece tracking
     piece_correct = torch.zeros(NUM_CLASSES, dtype=torch.long)
     piece_total = torch.zeros(NUM_CLASSES, dtype=torch.long)
-
-    # Confusion matrix
     confusion = torch.zeros(NUM_CLASSES, NUM_CLASSES, dtype=torch.long)
-
-    # Turn confusion (legal positions only)
     turn_confusion = torch.zeros(2, 2, dtype=torch.long)
 
-    # Track worst predictions
     worst = []
+
+    # Per-sample results for grouped metrics
+    sample_results = []
 
     sample_idx = 0
     for images, labels in tqdm(loader, desc="Evaluating"):
@@ -59,7 +74,7 @@ def evaluate(model, loader, device):
         sq_labels = labels["squares"].to(device, non_blocking=True)
         turn_labels = labels["turn"].to(device, non_blocking=True)
         castling_labels = labels["castling"].to(device, non_blocking=True)
-        legal_mask = labels["legal"].to(device, non_blocking=True).squeeze(1)  # (B,)
+        legal_mask = labels["legal"].to(device, non_blocking=True).squeeze(1)
 
         outputs = model(images)
         sq_logits = outputs["squares"].view(-1, NUM_SQUARES, NUM_CLASSES)
@@ -67,7 +82,6 @@ def evaluate(model, loader, device):
         batch_size = images.size(0)
         n_legal = int(legal_mask.sum().item())
 
-        # Piece predictions (all positions)
         preds = sq_logits.argmax(dim=-1)
         sq_correct = (preds == sq_labels)
         correct_squares += sq_correct.sum().item()
@@ -76,20 +90,21 @@ def evaluate(model, loader, device):
         total_squares += sq_labels.numel()
         total_boards += batch_size
 
-        # Loss (piece only, since turn/castling may not be valid)
         piece_loss = piece_criterion(sq_logits.reshape(-1, NUM_CLASSES), sq_labels.reshape(-1))
         total_loss += piece_loss.item() * batch_size
 
-        # Turn/castling accuracy (legal positions only)
+        # Turn/castling
+        turn_preds = (outputs["turn"] > 0).float()
+        turn_correct_mask = (turn_preds == turn_labels).squeeze(1)
+        castling_preds = (outputs["castling"] > 0).float()
+        castling_right_correct = (castling_preds == castling_labels)
+        castling_all_correct = castling_right_correct.all(dim=1)
+
         if n_legal > 0:
             legal_idx = legal_mask.bool()
             total_legal += n_legal
+            correct_turn += (turn_correct_mask & legal_idx).sum().item()
 
-            turn_preds = (outputs["turn"] > 0).float()
-            turn_correct = (turn_preds == turn_labels).squeeze(1)
-            correct_turn += (turn_correct & legal_idx).sum().item()
-
-            # Turn confusion matrix (legal only)
             turn_true = turn_labels.squeeze(1).long().cpu()
             turn_pred = turn_preds.squeeze(1).long().cpu()
             legal_cpu = legal_idx.cpu()
@@ -97,18 +112,14 @@ def evaluate(model, loader, device):
                 if legal_cpu[j]:
                     turn_confusion[turn_true[j], turn_pred[j]] += 1
 
-            castling_preds = (outputs["castling"] > 0).float()
-            castling_right_correct = (castling_preds == castling_labels)
             for r in range(4):
                 correct_castling_per_right[r] += (castling_right_correct[:, r] & legal_idx).sum().item()
-            castling_all_correct = castling_right_correct.all(dim=1)
             correct_castling_all += (castling_all_correct & legal_idx).sum().item()
 
-            # Full FEN accuracy (legal only)
-            full_correct = board_correct & turn_correct & castling_all_correct & legal_idx
+            full_correct = board_correct & turn_correct_mask & castling_all_correct & legal_idx
             correct_full_fen += full_correct.sum().item()
 
-        # Per-piece and confusion (all positions)
+        # Per-piece and confusion
         preds_cpu = preds.cpu()
         labels_cpu = sq_labels.cpu()
         for c in range(NUM_CLASSES):
@@ -119,9 +130,19 @@ def evaluate(model, loader, device):
         for t, p in zip(labels_cpu.reshape(-1), preds_cpu.reshape(-1)):
             confusion[t, p] += 1
 
-        # Worst predictions
+        # Store per-sample results for grouped analysis
         for i in range(batch_size):
             num_wrong = (preds_cpu[i] != labels_cpu[i]).sum().item()
+            is_legal = legal_mask[i].item() > 0
+            result = {
+                "idx": sample_idx + i,
+                "board_correct": board_correct[i].item(),
+                "squares_wrong": num_wrong,
+                "turn_correct": turn_correct_mask[i].item() if is_legal else None,
+                "castling_correct": castling_all_correct[i].item() if is_legal else None,
+            }
+            sample_results.append(result)
+
             if num_wrong > 0:
                 worst.append((
                     num_wrong,
@@ -132,7 +153,7 @@ def evaluate(model, loader, device):
 
         sample_idx += batch_size
 
-    # --- Print results ---
+    # --- Print overall results ---
     print("\n" + "=" * 60)
     print("EVALUATION RESULTS")
     print("=" * 60)
@@ -190,6 +211,66 @@ def evaluate(model, loader, device):
         print(f"    True: {fen_true}")
         print(f"    Pred: {fen_pred}")
 
+    # --- Grouped metrics by manifest properties ---
+    print_grouped_metrics(dataset, sample_results)
+
+
+def print_grouped_metrics(dataset, sample_results):
+    """Print accuracy breakdowns grouped by manifest metadata fields."""
+    if not hasattr(dataset, 'metadata') or not dataset.metadata or not dataset.metadata[0]:
+        return
+
+    # Fields to group by and how to bucket them
+    grouping_fields = {
+        "piece_count": piece_count_bucket,
+        "castling": castling_category,
+        "turn": lambda x: "white" if x == "w" else "black",
+        "has_highlight": lambda x: "highlighted" if x == "1" else "no highlight",
+        "style": lambda x: x,
+        "flipped": lambda x: "flipped" if x == "1" else "normal",
+    }
+
+    print("\n" + "=" * 60)
+    print("GROUPED METRICS")
+    print("=" * 60)
+
+    for field, bucket_fn in grouping_fields.items():
+        # Check if this field exists in metadata
+        sample_meta = dataset.get_metadata(0)
+        if field not in sample_meta:
+            continue
+
+        groups = defaultdict(lambda: {"total": 0, "board_correct": 0,
+                                       "turn_correct": 0, "turn_total": 0,
+                                       "castling_correct": 0, "castling_total": 0})
+
+        for result in sample_results:
+            meta = dataset.get_metadata(result["idx"])
+            raw_val = meta.get(field, "")
+            bucket = bucket_fn(raw_val)
+            g = groups[bucket]
+            g["total"] += 1
+            g["board_correct"] += result["board_correct"]
+            if result["turn_correct"] is not None:
+                g["turn_total"] += 1
+                g["turn_correct"] += result["turn_correct"]
+            if result["castling_correct"] is not None:
+                g["castling_total"] += 1
+                g["castling_correct"] += result["castling_correct"]
+
+        print(f"\nBy {field}:")
+        for bucket in sorted(groups.keys()):
+            g = groups[bucket]
+            board_acc = g["board_correct"] / g["total"] if g["total"] > 0 else 0
+            line = f"  {bucket:>20s}: board_acc={board_acc:.4f} (n={g['total']})"
+            if g["turn_total"] > 0:
+                turn_acc = g["turn_correct"] / g["turn_total"]
+                line += f"  turn={turn_acc:.4f}"
+            if g["castling_total"] > 0:
+                castling_acc = g["castling_correct"] / g["castling_total"]
+                line += f"  castling={castling_acc:.4f}"
+            print(line)
+
 
 if __name__ == "__main__":
     parser = argparse.ArgumentParser(description="Evaluate chess ViT on test set")
@@ -209,7 +290,7 @@ if __name__ == "__main__":
     model.load_state_dict(ckpt["model"])
 
     test_dir = args.test_dir or cfg["data"]["test_dir"]
-    manifest = args.manifest or cfg["data"].get("manifest")
+    manifest = args.manifest or cfg["data"].get("manifest_test") or cfg["data"].get("manifest")
     test_dataset = ChessDataset(
         test_dir,
         model_name=cfg["model"]["name"],
@@ -225,4 +306,4 @@ if __name__ == "__main__":
     )
     print(f"Test set: {len(test_dataset)} images from {test_dir}")
 
-    evaluate(model, test_loader, device)
+    evaluate(model, test_dataset, test_loader, device)

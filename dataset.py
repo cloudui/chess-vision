@@ -69,7 +69,7 @@ def parse_full_fen(fen_str: str) -> dict:
     """Parse a full FEN string into placement, turn, and castling components.
 
     Args:
-        fen_str: FEN string, e.g. "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq"
+        fen_str: FEN string, e.g. "rnbqkbnr/pppppppp/8/8/4P3/8/PPPP1PPP/RNBQKBNR b KQkq -"
                  Can have 2-6 space-separated fields. Only placement, turn, castling are used.
 
     Returns:
@@ -141,12 +141,11 @@ class ChessDataset(Dataset):
     """Dataset of chess board images with per-square piece labels.
 
     Supports two modes:
-    1. Manifest CSV mode: reads (filename, fen, legal) from a manifest file.
-       FEN includes placement + turn + castling.
-       legal=1 means turn/castling labels are trustworthy (from real games).
-       legal=0 means only piece placement is meaningful (random positions).
+    1. Manifest CSV mode: reads from a manifest CSV file.
+       FEN includes placement + turn + castling (+ optional en passant).
+       Extra columns (piece_count, style, flipped, etc.) are stored as
+       metadata for eval grouping.
     2. Filename mode (legacy/Kaggle): parses FEN from filenames.
-       Turn defaults to white, castling to none, legal to false.
 
     Each item returns:
         image: (3, 224, 224) tensor
@@ -169,28 +168,36 @@ class ChessDataset(Dataset):
         self.root_dir = root_dir
         self.transform = transform or get_transform(model_name, is_training=is_training)
 
+        # metadata[i] holds the full manifest row dict for eval grouping
+        self.metadata = []
+
         if manifest and os.path.exists(manifest):
-            # Manifest mode: read (filename, fen, legal) from CSV
             self.entries = []
             with open(manifest, newline="") as f:
                 reader = csv.DictReader(f)
                 for row in reader:
                     legal = row.get("legal", "1") == "1"
                     self.entries.append((row["filename"], row["fen"], legal))
+                    self.metadata.append(dict(row))
             self.use_manifest = True
         else:
-            # Legacy filename mode (Kaggle dataset)
             self.entries = [
                 (f, None, False) for f in sorted(os.listdir(root_dir))
                 if f.endswith('.jpeg') or f.endswith('.png')
             ]
+            self.metadata = [{} for _ in self.entries]
             self.use_manifest = False
 
         if max_samples is not None:
             self.entries = self.entries[:max_samples]
+            self.metadata = self.metadata[:max_samples]
 
     def __len__(self):
         return len(self.entries)
+
+    def get_metadata(self, idx: int) -> dict:
+        """Get the raw manifest row dict for a sample (for eval grouping)."""
+        return self.metadata[idx]
 
     def __getitem__(self, idx):
         filename, fen, legal = self.entries[idx]
@@ -201,7 +208,6 @@ class ChessDataset(Dataset):
         if self.use_manifest and fen:
             labels = parse_full_fen(fen)
         else:
-            # Legacy: parse from filename, default turn/castling
             placement_fen = filename_to_fen(filename)
             labels = {
                 "squares": fen_to_labels(placement_fen),

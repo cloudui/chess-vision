@@ -1,7 +1,8 @@
 data:
-  train_dir: data/generated      # generated images from datagen/
-  test_dir: kaggle/test           # keep Kaggle test for comparison
-  manifest: data/generated/manifest.csv  # manifest mode for generated data
+  train_dir: data/train
+  test_dir: data/test
+  manifest_train: data/train/manifest.csv
+  manifest_test: data/test/manifest.csv
   max_samples: null        # null = use all images, set to int for quick runs
   val_split: 0.1
   num_workers: 6
