@@ -96,12 +96,15 @@ def build_scheduler(optimizer, cfg, steps_per_epoch):
 # ---------------------------------------------------------------------------
 
 def run_epoch(model, loader, device, use_amp, cfg, training=False,
-              optimizer=None, scheduler=None, scaler=None, class_weights=None):
+              optimizer=None, scheduler=None, scaler=None, class_weights=None,
+              writer=None, global_step=0):
     """Run one epoch of training or validation.
 
     When *training* is True, performs optimizer/scheduler/scaler steps.
     All training data is assumed legal, so turn and castling losses are
     computed on every sample without masking.
+
+    Returns (metrics_dict, updated_global_step).
     """
     model.train(training)
 
@@ -156,6 +159,13 @@ def run_epoch(model, loader, device, use_amp, cfg, training=False,
                 scaler.update()
                 scheduler.step()
 
+                # Per-step TensorBoard logging
+                if writer is not None:
+                    writer.add_scalar("step/loss", loss.item(), global_step)
+                    writer.add_scalar("step/piece_loss", piece_loss.item(), global_step)
+                    writer.add_scalar("step/lr", optimizer.param_groups[0]["lr"], global_step)
+                global_step += 1
+
             batch_size = images.size(0)
             total_loss += loss.item() * batch_size
 
@@ -188,7 +198,7 @@ def run_epoch(model, loader, device, use_amp, cfg, training=False,
                 pbar.set_postfix(loss=f"{loss.item():.4f}")
 
     n = total_boards
-    return {
+    metrics = {
         "loss": total_loss / n,
         "square_acc": correct_squares / total_squares,
         "board_acc": correct_boards / n,
@@ -197,6 +207,7 @@ def run_epoch(model, loader, device, use_amp, cfg, training=False,
         "castling_acc": correct_castling_all / n,
         "full_fen_acc": correct_full_fen / n,
     }
+    return metrics, global_step
 
 
 # ---------------------------------------------------------------------------
@@ -327,16 +338,17 @@ if __name__ == "__main__":
 
     # --- Training loop ---
     epochs = cfg["training"]["epochs"]
+    global_step = 0
     for epoch in range(start_epoch, epochs):
         print(f"\nEpoch {epoch + 1}/{epochs}")
         t0 = time.time()
 
-        train_metrics = run_epoch(
+        train_metrics, global_step = run_epoch(
             model, train_loader, device, use_amp, cfg,
             training=True, optimizer=optimizer, scheduler=scheduler, scaler=scaler,
-            class_weights=class_weights,
+            class_weights=class_weights, writer=writer, global_step=global_step,
         )
-        val_metrics = run_epoch(
+        val_metrics, _ = run_epoch(
             model, val_loader, device, use_amp, cfg,
             class_weights=class_weights,
         )
@@ -362,16 +374,14 @@ if __name__ == "__main__":
         )
         print(f"  LR: {lr:.2e} | Time: {elapsed:.1f}s")
 
-        # TensorBoard
+        # TensorBoard — epoch-level metrics grouped for comparison
         for prefix, metrics in [("train", train_metrics), ("val", val_metrics)]:
-            writer.add_scalar(f"{prefix}/loss", metrics["loss"], epoch)
-            writer.add_scalar(f"{prefix}/square_acc", metrics["square_acc"], epoch)
-            writer.add_scalar(f"{prefix}/board_acc", metrics["board_acc"], epoch)
-            writer.add_scalar(f"{prefix}/turn_acc", metrics["turn_acc"], epoch)
-            writer.add_scalar(f"{prefix}/castling_right_acc", metrics["castling_right_acc"], epoch)
-            writer.add_scalar(f"{prefix}/castling_acc", metrics["castling_acc"], epoch)
-            writer.add_scalar(f"{prefix}/full_fen_acc", metrics["full_fen_acc"], epoch)
-        writer.add_scalar("lr", lr, epoch)
+            writer.add_scalar(f"loss/{prefix}", metrics["loss"], epoch)
+            writer.add_scalar(f"accuracy/board_{prefix}", metrics["board_acc"], epoch)
+            writer.add_scalar(f"accuracy/square_{prefix}", metrics["square_acc"], epoch)
+            writer.add_scalar(f"accuracy/turn_{prefix}", metrics["turn_acc"], epoch)
+            writer.add_scalar(f"accuracy/castling_{prefix}", metrics["castling_acc"], epoch)
+            writer.add_scalar(f"accuracy/full_fen_{prefix}", metrics["full_fen_acc"], epoch)
 
         # Checkpoint
         ckpt = {
