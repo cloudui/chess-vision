@@ -1,0 +1,37 @@
+# Dataset generation configuration.
+#
+# Approach:
+# - Train on legal positions only. Real games cover opening→endgame,
+#   2-32 pieces, and natural turn/castling distributions.
+# - Test on legal positions (primary eval) + random positions (robustness check).
+# - Turn/castling heads share the backbone but are trained separately from
+#   piece placement — the legal flag in the manifest controls this.
+#
+# Run: node generate.js --config dataset.yaml
+
+splits:
+  train:
+    output_dir: ../data/train
+    sources:
+      - type: pgn
+        pgn: ../data/lichess_db_standard_rated_2015-08.pgn
+        count: 10000
+
+  test:
+    output_dir: ../data/test
+    sources:
+      - type: pgn
+        pgn: ../data/lichess_db_standard_rated_2015-08.pgn
+        count: 2000
+
+  # Robustness eval: can the model still identify pieces in
+  # positions it's never seen in real games?
+  test_random:
+    output_dir: ../data/test_random
+    sources:
+      - type: random
+        count: 500
+
+rendering:
+  image_size: 480
+  seed: 42
