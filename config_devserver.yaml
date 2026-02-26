@@ -1,6 +1,6 @@
 data:
-  train_dir: kaggle/train
-  test_dir: kaggle/test
+  train_dir: data/train
+  test_dir: data/test
   max_samples: null
   val_split: 0.1
   num_workers: 16
@@ -17,6 +17,8 @@ training:
   weight_decay: 0.01
   grad_clip_norm: 1.0
   mixed_precision: true
+  turn_loss_weight: 1.0
+  castling_loss_weight: 1.0
 
 scheduler:
   type: cosine

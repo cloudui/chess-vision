@@ -1,8 +1,6 @@
 data:
   train_dir: data/train
   test_dir: data/test
-  manifest_train: data/train/manifest.csv
-  manifest_test: data/test/manifest.csv
   max_samples: null        # null = use all images, set to int for quick runs
   val_split: 0.1
   num_workers: 6
