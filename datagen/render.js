@@ -4,7 +4,7 @@
 
 const path = require('path');
 const { createCanvas, loadImage } = require('@napi-rs/canvas');
-const { choice } = require('./rand');
+const { choice, randInt } = require('./rand');
 
 const PIECE_RES_DIR = path.join(
   __dirname, 'node_modules', 'chess-fen2img', 'src', 'resources'
@@ -81,13 +81,27 @@ function parsePlacement(placement) {
   return squares;
 }
 
+/** Generate a random light/dark board color pair. */
+function randomBoardColors() {
+  // Light square: high luminance (180-240 per channel)
+  const lr = randInt(170, 245), lg = randInt(170, 245), lb = randInt(170, 245);
+  // Dark square: lower luminance (80-160 per channel)
+  const dr = randInt(60, 170), dg = randInt(60, 170), db = randInt(60, 170);
+  return {
+    light: `rgb(${lr}, ${lg}, ${lb})`,
+    dark: `rgb(${dr}, ${dg}, ${db})`,
+  };
+}
+
 /** Pick random visual style options for a board. */
 function randomStyle(renderConfig = {}) {
   const highlightPct = renderConfig.highlight_pct != null ? renderConfig.highlight_pct : 0.6;
+  // 50% chance of using a known board color, 50% fully random
+  const colors = Math.random() < 0.5 ? choice(BOARD_COLORS) : randomBoardColors();
 
   return {
     style: choice(PIECE_STYLES),
-    colors: choice(BOARD_COLORS),
+    colors,
     flipped: choice([false, true]),  // 50/50
     highlightColor: choice(HIGHLIGHT_COLORS),
     showHighlights: Math.random() < highlightPct,

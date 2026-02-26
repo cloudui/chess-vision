@@ -105,13 +105,43 @@ def parse_full_fen(fen_str: str) -> dict:
     }
 
 
+# ---------------------------------------------------------------------------
+# Training augmentations for OOD robustness
+# ---------------------------------------------------------------------------
+
+class RandomChannelPermutation:
+    """Randomly permute RGB channels of a tensor (after ToTensor)."""
+    def __init__(self, p=0.2):
+        self.p = p
+
+    def __call__(self, tensor):
+        if torch.rand(1).item() < self.p:
+            perm = torch.randperm(3)
+            return tensor[perm]
+        return tensor
+
+
+class RandomInvert:
+    """Randomly invert pixel values: 1 - x (after ToTensor, before Normalize)."""
+    def __init__(self, p=0.05):
+        self.p = p
+
+    def __call__(self, tensor):
+        if torch.rand(1).item() < self.p:
+            return 1.0 - tensor
+        return tensor
+
+
 def get_transform(model_name: str, is_training: bool = False, input_size: int | None = None):
     """Build the image transform from a timm model's pretrained config.
 
-    For training, uses chess-safe augmentations only:
+    For training, uses chess-safe augmentations designed for OOD robustness:
     - No horizontal flip (would swap board columns, misaligning labels)
     - No aggressive random crop (would lose squares)
-    - Color jitter is safe (helps generalize to different board themes)
+    - Aggressive color jitter with hue (generalizes across board themes)
+    - Random grayscale (forces shape-based piece recognition)
+    - Random inversion (handles dark-on-dark OOD boards)
+    - Random channel permutation (color-scheme invariance)
     """
     pretrained_cfg = timm.create_model(model_name, pretrained=False).pretrained_cfg
     data_cfg = resolve_data_config(pretrained_cfg)
@@ -124,8 +154,13 @@ def get_transform(model_name: str, is_training: bool = False, input_size: int | 
     if is_training:
         return transforms.Compose([
             transforms.Resize((input_size, input_size)),
-            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4),
+            transforms.RandomPerspective(distortion_scale=0.05, p=0.3),
+            transforms.ColorJitter(brightness=0.4, contrast=0.4, saturation=0.4, hue=0.5),
+            transforms.RandomGrayscale(p=0.1),
+            transforms.GaussianBlur(kernel_size=5, sigma=(0.1, 2.0)),
             transforms.ToTensor(),
+            RandomChannelPermutation(p=0.2),
+            RandomInvert(p=0.05),
             transforms.Normalize(mean=mean, std=std),
         ])
     else:
