@@ -1,6 +1,8 @@
 data:
   train_dir: data/train
   test_dir: data/test
+  ood_val_dir: kaggle/test       # OOD validation set monitored each epoch
+  ood_val_max_samples: 2000
   max_samples: null
   val_split: 0.1
   num_workers: 16

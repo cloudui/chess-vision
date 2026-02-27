@@ -288,6 +288,27 @@ if __name__ == "__main__":
     )
     print(f"Train: {train_size}, Val: {val_size}")
 
+    # --- OOD validation set (optional) ---
+    ood_loader = None
+    ood_dir = cfg["data"].get("ood_val_dir")
+    ood_max = cfg["data"].get("ood_val_max_samples", 2000)
+    if ood_dir and os.path.isdir(ood_dir):
+        ood_dataset = ChessDataset(
+            ood_dir,
+            model_name=model_name,
+            max_samples=ood_max,
+            is_training=False,
+            input_size=input_size,
+        )
+        ood_loader = DataLoader(
+            ood_dataset,
+            batch_size=cfg["training"]["batch_size"],
+            shuffle=False,
+            num_workers=num_workers,
+            pin_memory=pin,
+        )
+        print(f"OOD val: {len(ood_dataset)} images from {ood_dir}")
+
     # --- Class weights ---
     class_weights = None
     if cfg["training"].get("use_class_weights", False):
@@ -386,6 +407,13 @@ if __name__ == "__main__":
             class_weights=class_weights,
         )
 
+        # OOD validation (piece-only metrics)
+        ood_metrics = None
+        if ood_loader is not None:
+            ood_metrics, _ = run_epoch(
+                model, ood_loader, device, use_amp, cfg,
+            )
+
         elapsed = time.time() - t0
         lr = optimizer.param_groups[0]["lr"]
 
@@ -405,6 +433,12 @@ if __name__ == "__main__":
             f"castling: {val_metrics['castling_acc']:.4f}, "
             f"full_fen: {val_metrics['full_fen_acc']:.4f}"
         )
+        if ood_metrics is not None:
+            print(
+                f"  OOD   — loss: {ood_metrics['loss']:.4f}, "
+                f"sq_acc: {ood_metrics['square_acc']:.4f}, "
+                f"board_acc: {ood_metrics['board_acc']:.4f}"
+            )
         print(f"  LR: {lr:.2e} | Time: {elapsed:.1f}s")
 
         # TensorBoard — epoch-level metrics grouped for comparison
@@ -415,6 +449,10 @@ if __name__ == "__main__":
             writer.add_scalar(f"accuracy/turn_{prefix}", metrics["turn_acc"], epoch)
             writer.add_scalar(f"accuracy/castling_{prefix}", metrics["castling_acc"], epoch)
             writer.add_scalar(f"accuracy/full_fen_{prefix}", metrics["full_fen_acc"], epoch)
+        if ood_metrics is not None:
+            writer.add_scalar("accuracy/board_ood", ood_metrics["board_acc"], epoch)
+            writer.add_scalar("accuracy/square_ood", ood_metrics["square_acc"], epoch)
+            writer.add_scalar("loss/ood", ood_metrics["loss"], epoch)
 
         # Checkpoint
         ckpt = {
