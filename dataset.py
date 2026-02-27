@@ -230,7 +230,7 @@ class ChessDataset(Dataset):
             self.samples = [
                 {"filename": f}
                 for f in sorted(os.listdir(root_dir))
-                if f.endswith('.jpeg') or f.endswith('.png')
+                if f.endswith('.jpeg') or f.endswith('.jpg') or f.endswith('.png')
             ]
             self.use_manifest = False
 

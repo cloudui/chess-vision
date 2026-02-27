@@ -169,7 +169,8 @@ async function preloadPieceImages(styles) {
  * lastMove: { from: "e2", to: "e4" } or null
  */
 async function renderBoard(placement, opts) {
-  const { size, light, dark, style, flipped, lastMove, highlightColor, showHighlights, texture } = opts;
+  const { size, light, dark, style, flipped, lastMove, highlightColor, showHighlights, texture,
+          imageFormat, imageQuality } = opts;
 
   const canvas = createCanvas(size, size);
   const ctx = canvas.getContext('2d');
@@ -214,7 +215,9 @@ async function renderBoard(placement, opts) {
     }
   }
 
-  return canvas.toBuffer('image/png');
+  const fmt = imageFormat === 'png' ? 'image/png' : 'image/jpeg';
+  const bufOpts = fmt === 'image/jpeg' ? { quality: imageQuality || 90 } : {};
+  return canvas.toBuffer(fmt, bufOpts);
 }
 
 module.exports = { renderBoard, randomStyle, preloadPieceImages, BOARD_TEXTURES };
