@@ -23,6 +23,8 @@ const { randomStyle } = require('./render');
 async function generateSplit(name, splitConfig, rendering) {
   const { output_dir: outputDir, sources } = splitConfig;
   const imageSize = rendering.image_size || 480;
+  const imageFormat = rendering.image_format || 'jpeg';
+  const imageQuality = rendering.image_quality || 90;
 
   fs.mkdirSync(outputDir, { recursive: true });
 
@@ -70,7 +72,7 @@ async function generateSplit(name, splitConfig, rendering) {
 
   await Promise.all(chunks.map(chunk => new Promise((resolve, reject) => {
     const worker = new Worker(path.join(__dirname, 'render-worker.js'), {
-      workerData: { items: chunk, outputDir, imageSize },
+      workerData: { items: chunk, outputDir, imageSize, imageFormat, imageQuality },
     });
 
     worker.on('message', msg => {

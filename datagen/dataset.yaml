@@ -19,14 +19,14 @@ splits:
     sources:
       - type: pgn
         pgn: ../data/lichess_db_standard_rated_2015-08.pgn
-        count: 150000
+        count: 50000
 
   test:
     output_dir: ../data/test
     sources:
       - type: pgn
         pgn: ../data/lichess_db_standard_rated_2015-08.pgn
-        count: 20000
+        count: 15000
 
   # Robustness eval: can the model still identify pieces in
   # positions it's never seen in real games?
@@ -37,7 +37,9 @@ splits:
         count: 5000
 
 rendering:
-  image_size: 480
+  image_size: 256
+  image_format: jpeg     # "jpeg" or "png"
+  image_quality: 90      # JPEG quality (ignored for PNG)
   seed: 42
-  highlight_pct: 0.6   # 60% of boards show last-move highlights
-  texture_pct: 0.5     # 50% of boards use texture backgrounds (wood, marble, etc.)
+  highlight_pct: 0.6
+  texture_pct: 0.5

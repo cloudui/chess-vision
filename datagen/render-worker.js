@@ -32,7 +32,8 @@ function countPieces(placement) {
 }
 
 async function run() {
-  const { items, outputDir, imageSize } = workerData;
+  const { items, outputDir, imageSize, imageFormat, imageQuality } = workerData;
+  const ext = imageFormat === 'png' ? '.png' : '.jpg';
 
   // Pre-load all piece images needed by this chunk
   const styles = items.map(item => item.style.style);
@@ -53,9 +54,11 @@ async function run() {
       highlightColor: vis.highlightColor,
       showHighlights: vis.showHighlights,
       texture: vis.texture || null,
+      imageFormat: imageFormat || 'jpeg',
+      imageQuality: imageQuality || 90,
     });
 
-    const filename = `${String(index).padStart(6, '0')}.png`;
+    const filename = `${String(index).padStart(6, '0')}${ext}`;
     await fs.promises.writeFile(path.join(outputDir, filename), buffer);
 
     const fen = boardFenForOrientation(pos, vis.flipped);
