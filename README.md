@@ -109,6 +109,14 @@ python evaluate.py --checkpoint checkpoints/best.pth --test-dir kaggle/test
 python evaluate.py --checkpoint checkpoints/best.pth --max-samples 3000
 ```
 
+### Visualize Failures
+
+```bash
+python visualize_failures.py --checkpoint checkpoints/best.pth --test-dir kaggle/test --max-samples 10000 --output kaggle_failures.png
+```
+
+Saves a grid of the worst-performing boards with true/predicted FEN for visual debugging.
+
 ### Predict
 
 ```bash

@@ -1,6 +1,8 @@
 data:
   train_dir: data/train
   test_dir: data/test
+  ood_val_dir: kaggle/test
+  ood_val_max_samples: 2000
   max_samples: null
   val_split: 0.1
   num_workers: 16
@@ -16,13 +18,13 @@ model:
 
 training:
   epochs: 10
-  batch_size: 512
-  lr: 5.0e-4
+  batch_size: 256
+  lr: 4.0e-4
   weight_decay: 0.05
   grad_clip_norm: 1.0
   mixed_precision: true
   label_smoothing: 0.1
-  use_class_weights: true
+  use_class_weights: false
   turn_loss_weight: 1.0
   castling_loss_weight: 1.0
 
